@@ -1,0 +1,102 @@
+# pi-curated-themes
+
+[![Release](https://img.shields.io/github/v/release/victor-software-house/pi-curated-themes?sort=semver)](https://github.com/victor-software-house/pi-curated-themes/releases)
+
+Curated dark terminal themes for [pi](https://github.com/badlogic/pi-mono), adapted from [iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes) to pi's 51-token theme model.
+
+## Variant naming
+
+Every theme name ends with a **variant suffix**:
+
+| Suffix | Strategy | When to use |
+|---|---|---|
+| `-semantic` | Colors assigned by **function** (success = green, error = red, warning = amber) even if the source palette lacks those hues | Default for daily use |
+
+All themes currently ship as `-semantic` variants.
+
+## Included themes (65)
+
+Adventure, Adwaita Dark, Arcoiris, Arthur, Atom, Aura,
+Black Metal (Bathory), Black Metal (Burzum), Black Metal (Khold),
+Box, Brogrammer, Carbonfox, Catppuccin Mocha, Citruszest,
+Cursor Dark, Cutie Pro, Dark Modern, Dark Pastel, Dimmed Monokai,
+Doom Peacock, Dracula+, Earthsong, Everforest Dark Hard, Fahrenheit,
+Flatland, Flexoki Dark, Front End Delight, Fun Forrest, Galizur,
+GitHub Dark Colorblind, GitHub Dark High Contrast, Glacier,
+Gruber Darker, Gruvbox Dark, Gruvbox Dark Hard, Gruvbox Material,
+Guezwhoz, Hacktober, Hardcore, Havn Skumring, IC Orange PPL,
+iTerm2 Smoooooth, iTerm2 Tango Dark, Japanesque, Jellybeans,
+Kanagawa Wave, Kurokula, Later This Evening, Lovelace,
+Material Darker, Matte Black, Mellow, Miasma, Nvim Dark,
+Popping And Locking, Sea Shells, Sleepy Hollow, Smyck,
+Tomorrow Night, Tomorrow Night Bright, Tomorrow Night Burns,
+Twilight, Vague, Vesper, Xcode Dark hc
+
+The curation list is in `curated.toml`.
+
+## What "semantic" means
+
+Source palettes define 16 ANSI colors plus background/foreground/cursor. pi requires 51 tokens for tool panels, diff colors, markdown, syntax highlighting, thinking borders, and footer readability.
+
+A semantic variant assigns pi tokens by **role**:
+
+- `success` is always green/teal (hue 80-200)
+- `error` is always red/warm (hue <50 or >320)
+- `warning` is always yellow/amber (hue 30-80)
+- All three are guaranteed 25+ degrees of hue separation
+
+When a palette lacks a needed hue, the missing color is derived by mixing a canonical hue with the theme's foreground.
+
+## Install
+
+```bash
+# From GitHub
+pi install git:github.com/victor-software-house/pi-curated-themes
+
+# From npm (after publishing)
+pi install npm:@victor/pi-curated-themes
+```
+
+## Use
+
+Select a theme in `/settings`, or set it in `~/.pi/agent/settings.json`:
+
+```json
+{
+  "theme": "catppuccin-mocha-semantic"
+}
+```
+
+Theme names follow the pattern `{slugified-name}-semantic`.
+
+## Generating themes
+
+```bash
+# 1. Fetch upstream color schemes
+bash scripts/fetch-upstream.sh
+
+# 2. Generate all curated themes
+python3 scripts/generate-pi-themes.py
+
+# 3. Generate a single theme
+python3 scripts/generate-pi-themes.py --name "Catppuccin Mocha"
+
+# 4. Validate without regenerating
+python3 scripts/generate-pi-themes.py --validate
+```
+
+## Upstream
+
+Color palettes originate from [mbadolato/iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes) (MIT licensed). The `.itermcolors` XML plist files are parsed directly — no Ghostty dependency.
+
+## Release process
+
+Uses `release-please` with Conventional Commits:
+
+- `fix:` -> patch (visual tuning)
+- `feat:` -> minor (new themes)
+- `feat!:` -> major (renames, removals)
+
+## License
+
+MIT
