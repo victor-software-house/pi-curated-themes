@@ -69,6 +69,32 @@ Select a theme in `/settings`, or set it in `~/.pi/agent/settings.json`:
 
 Theme names follow the pattern `{slugified-name}-semantic`.
 
+## Development tools
+
+This repository uses `mise` to manage local runtimes for development tasks:
+
+```bash
+mise install
+```
+
+Pinned tools:
+
+- `node = "lts"`
+- `bun = "latest"`
+- `python = "3.12"`
+
+## Theme preview
+
+Run the interactive preview TUI with mise:
+
+```bash
+mise run preview
+mise run preview -- light
+mise run preview -- all
+```
+
+The task runs `scripts/list-themes-tui.ts`, which uses Bun to resolve its npm dependencies on demand.
+
 ## Generating themes
 
 ```bash
@@ -76,13 +102,13 @@ Theme names follow the pattern `{slugified-name}-semantic`.
 bash scripts/fetch-upstream.sh
 
 # 2. Generate all curated themes
-python3 scripts/generate-pi-themes.py
+mise x -- python3 scripts/generate-pi-themes.py
 
 # 3. Generate a single theme
-python3 scripts/generate-pi-themes.py --name "Catppuccin Mocha"
+mise x -- python3 scripts/generate-pi-themes.py --name "Catppuccin Mocha"
 
 # 4. Validate without regenerating
-python3 scripts/generate-pi-themes.py --validate
+mise x -- python3 scripts/generate-pi-themes.py --validate
 ```
 
 ## Upstream

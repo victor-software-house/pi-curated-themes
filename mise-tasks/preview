@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#MISE description="Run the interactive pi theme preview TUI from scripts/list-themes-tui.ts. Installs script dependencies through Bun on demand and accepts a theme mode argument: dark, light, or all."
+#MISE quiet=true
+#MISE raw=true
+#USAGE arg "[mode]" default="dark" help="Theme subset to preview"
+set -euo pipefail
+
+case "${usage_mode}" in
+  dark|light|all) ;;
+  *)
+    printf 'ERROR: mode must be one of: dark, light, all\n' >&2
+    exit 1
+    ;;
+esac
+
+./scripts/list-themes-tui.ts "${usage_mode}"
