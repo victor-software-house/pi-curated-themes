@@ -13,7 +13,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/victor-software-house/pi-curated-themes.git"
+    "url": "git+https://github.com/victor-software-house/pi-curated-themes.git"
   },
   "homepage": "https://github.com/victor-software-house/pi-curated-themes",
   "files": [

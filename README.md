@@ -53,12 +53,16 @@ When a palette lacks a needed hue, the missing color is derived by mixing a cano
 
 ## Install
 
-```bash
-# From GitHub
-pi install git:github.com/victor-software-house/pi-curated-themes
+Recommended:
 
-# From npm
+```bash
 pi install npm:@victor-software-house/pi-curated-themes
+```
+
+Alternative:
+
+```bash
+pi install git:github.com/victor-software-house/pi-curated-themes
 ```
 
 ## Use
@@ -150,29 +154,13 @@ Release automation:
 4. `semantic-release` determines the next version from commit history.
 5. GitHub release creation and `npm publish --provenance --access public` run from GitHub Actions OIDC.
 
-Required one-time bootstrap before trusted publishing works:
+Current status:
 
-1. Publish `@victor-software-house/pi-curated-themes` once from a maintainer machine with normal npm authentication.
-2. Push the matching historical release tag so `semantic-release` sees the existing published version:
+- `@victor-software-house/pi-curated-themes` is published on npm.
+- npm trusted publishing is configured for `victor-software-house/pi-curated-themes` and `.github/workflows/publish.yml`.
+- Historical tag `v0.1.0` was pushed so `semantic-release` can continue from the existing published version.
 
-   ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
-
-3. Register the trusted publisher for this repository and workflow:
-
-   ```bash
-   script -q /dev/null bash -lc 'npm trust github @victor-software-house/pi-curated-themes --repository victor-software-house/pi-curated-themes --file publish.yml --yes'
-   ```
-
-4. Confirm the trust relationship:
-
-   ```bash
-   npm trust list @victor-software-house/pi-curated-themes
-   ```
-
-After bootstrap, do not use `NPM_TOKEN` for GitHub Actions publishing.
+Do not use `NPM_TOKEN` for GitHub Actions publishing.
 
 ## License
 
