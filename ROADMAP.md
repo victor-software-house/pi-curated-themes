@@ -58,11 +58,9 @@ Implemented:
 - `semantic-release` is the release automation model
 - GitHub Actions publish uses npm trusted publishing with OIDC instead of `NPM_TOKEN`
 - Conventional Commits are enforced locally with Lefthook + commitlint and again in CI
-
-Outstanding bootstrap requirement:
-
-- The package still needs its first manual npm publish before trusted publishing can be activated for later automated releases
-- After that bootstrap publish, push the matching historical git tag before relying on `semantic-release`
+- The package is published on npm as `@victor-software-house/pi-curated-themes`
+- npm trusted publishing is configured for `victor-software-house/pi-curated-themes` and `.github/workflows/publish.yml`
+- Historical tag `v0.1.0` exists on the remote so `semantic-release` has a valid starting point
 
 ### Preview TUI
 
@@ -75,6 +73,21 @@ Implemented in `scripts/list-themes-tui.ts`:
 - actual pi components for previewed content blocks
 - TypeScript example snippet for supported syntax highlighting
 - preview task via `mise run preview`
+
+### Package gallery metadata and extension UX research
+
+Current findings:
+
+- The package gallery badges are driven by actual package resources, not by keywords alone.
+- This package currently shows as `skill` + `theme`, not `extension`, because it ships `skills/` and `themes/` but no `extensions/` entry.
+- pi package gallery preview media is static package metadata. In practice among nearby Victor packages, `pi-multicodex` uses `pi.image` in `package.json` to show a gallery card preview image.
+- No nearby Victor package currently ships a live theme preview panel inside pi itself. The closest reusable pattern is extension-owned settings UI built with `ctx.ui.custom()` plus `SettingsList`, as used in `pi-multicodex`, and richer modal infrastructure like the custom Zellij-style modal in `pi-context-optimizer`.
+
+Implications:
+
+- If this package wants a gallery preview, the lowest-friction option is to add a static `pi.image` screenshot showing several themes.
+- If this package wants an in-app preview panel, it needs to ship an actual extension and use extension UI primitives such as `ctx.ui.custom()`, `ctx.ui.setWidget()`, or a custom footer/editor component.
+- A package-level preview image and an in-app preview extension solve different problems and can coexist.
 
 ## Files that matter most
 
@@ -129,6 +142,19 @@ Keep validation lightweight unless a future task explicitly requires stronger po
 
 The preview should be as close as possible to `ghostty +list-themes`, but it should preview pi themes, not raw terminal themes. The temporary terminal override should use the original upstream terminal theme so the surrounding terminal matches the source palette during preview.
 
+### Theme selection integration policy
+
+Current API constraints from pi docs:
+
+- Themes are selected through built-in `/settings` or by writing `theme` in `settings.json`.
+- Extensions can register new commands and custom UI, but built-in interactive commands like `/settings` are handled separately.
+- The docs describe overriding built-in tools, but do not describe overriding built-in interactive commands or replacing the built-in theme selector directly.
+
+Working assumption until proven otherwise:
+
+- A custom extension can improve theme selection by providing its own command or panel and then writing the chosen theme into settings.
+- A custom extension should not assume it can replace the built-in `/settings` theme selector directly without upstream pi changes.
+
 ## Remaining work
 
 ### 1. Finish preview fidelity work
@@ -141,7 +167,42 @@ Remaining improvements:
 - Refine row styling and scroll affordances in the left pane.
 - Polish help and search overlays further if a later pass needs closer Ghostty parity.
 
-### 2. Continue tuning visually sensitive themes
+### 2. Design an in-app theme picker extension
+
+The current `mise run preview` TUI works well for batch review, but it is separate from normal pi interaction and separate from the built-in theme selector.
+
+Recommended exploration path:
+
+- Prototype a lightweight extension that opens a theme picker panel with `ctx.ui.custom()`.
+- Reuse proven patterns from Victor-owned packages:
+  - `pi-multicodex` style `SettingsList`/live-preview panel for quick iteration and searchable lists
+  - `pi-context-optimizer` style custom modal if the stock list components prove too limiting
+- Treat the first extension prototype as a focused UX experiment rather than a final architecture decision.
+
+Open design questions:
+
+- Should the panel be fullscreen, overlay, or a compact right-side panel?
+- Should it render a single representative preview block, or a reduced multi-surface snapshot?
+- Should it keep the current preview’s temporary terminal-palette override, or use only pi theme tokens?
+
+### 3. Improve theme filtering and selection UX
+
+The built-in theme selector is currently a bottleneck for a large curated set.
+
+Recommended focus:
+
+- Support faster filtering by slug and display name.
+- Add package-local metadata for grouping and filtering, for example source family, contrast level, accent hue, or "quiet vs vivid" tags.
+- Prefer interaction patterns that reduce long flat scrolling.
+- Keep the extension picker search-first and keyboard-first.
+
+Important constraint:
+
+- Current pi docs do not show a supported way to override the built-in `/settings` theme selector directly.
+- The practical route is to add a separate extension command or panel that writes the selected theme to settings.
+- If direct replacement is desired, that likely requires upstream pi support rather than package-only work.
+
+### 4. Continue tuning visually sensitive themes
 
 If individual themes still look off during review, inspect these values first:
 
@@ -153,7 +214,7 @@ If individual themes still look off during review, inspect these values first:
 
 Then retune generation heuristics only where the preview still looks unnatural.
 
-### 3. Continue visual tuning where needed
+### 5. Continue visual tuning where needed
 
 The main remaining theme work is visual tuning rather than policy work.
 
@@ -162,6 +223,14 @@ Current focus areas:
 - keep tool success panels quieter than tool error panels
 - keep read and edit panels closer to the source palette identity
 - keep diff colors readable without making them feel detached from the base theme
+
+### 6. Decide whether to add gallery preview media
+
+If the package should look better in the package gallery:
+
+- add a static `pi.image` preview to `package.json`
+- use it only as package-card marketing context, not as a replacement for the in-app picker UX
+- keep this decision separate from the extension work so the package can ship one without blocking on the other
 
 ## Recommended next-session workflow
 
@@ -176,10 +245,14 @@ When resuming in a new session, follow this order:
    - `mise run themes:validate`
 3. If working on preview fidelity:
    - `mise run preview`
-4. If working on generator behavior:
+4. If exploring in-app picker UX:
+   - review `pi-multicodex/status.ts` for the `ctx.ui.custom()` + `SettingsList` live-preview pattern
+   - review `pi-context-optimizer/src/zellij-modal.ts` if a richer modal layout is needed
+   - verify pi extension docs before assuming built-in `/settings` can be replaced
+5. If working on generator behavior:
    - regenerate with `mise run themes:generate`
    - revalidate immediately
-5. Commit and push often
+6. Commit and push often
 
 ## Current known commands
 
