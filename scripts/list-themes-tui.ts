@@ -166,7 +166,8 @@ class ThemeBrowser implements Component {
 
     const leftLines = this.renderThemeList(leftWidth, bodyRows);
     const rightLines = padToRows(this.renderPreview(rightWidth), bodyRows, this.getPreviewFiller(rightWidth));
-    let body = joinColumns(leftLines, rightLines, leftWidth, separator, rightWidth);
+    const separatorBg = this.selectedTheme?.pageBg ?? this.filteredThemes[0]?.pageBg ?? "#000000";
+    let body = joinColumns(leftLines, rightLines, leftWidth, separator, rightWidth, separatorBg);
     if (this.helpMode) {
       body = overlayLines(body, buildHelpOverlay(width, bodyRows, this.getChromeTheme()));
     }
@@ -552,14 +553,16 @@ function joinColumns(
   leftWidth: number,
   separator: string,
   rightWidth: number,
+  separatorBg: string,
 ): string[] {
   const lineCount = Math.max(leftLines.length, rightLines.length);
   const lines: string[] = [];
+  const styledSeparator = paintBackground(separator, separatorBg);
 
   for (let index = 0; index < lineCount; index++) {
     const left = padVisible(leftLines[index] ?? "", leftWidth);
     const right = padVisible(rightLines[index] ?? "", rightWidth);
-    lines.push(`${left}${separator}${right}`);
+    lines.push(`${left}${styledSeparator}${right}`);
   }
 
   return lines;
@@ -728,10 +731,18 @@ function bgLine(hex: string, width: number): string {
   return `\x1b[48;2;${r};${g};${b}m${" ".repeat(width)}\x1b[49m`;
 }
 
+function paintBackground(text: string, hex: string): string {
+  const [r, g, b] = hexToRgb(hex);
+  const bgAnsi = `\x1b[48;2;${r};${g};${b}m`;
+  const normalized = text
+    .replaceAll("\x1b[49m", bgAnsi)
+    .replaceAll("\x1b[0m", `\x1b[39m${bgAnsi}`);
+  return `${bgAnsi}${normalized}\x1b[49m`;
+}
+
 function padLineBackground(line: string, width: number, hex: string): string {
   const padded = padVisible(line, width);
-  const [r, g, b] = hexToRgb(hex);
-  return `\x1b[48;2;${r};${g};${b}m${padded}\x1b[49m`;
+  return paintBackground(padded, hex);
 }
 
 function enterAlternateScreen(): void {
