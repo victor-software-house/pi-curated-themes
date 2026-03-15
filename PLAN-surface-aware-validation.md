@@ -109,12 +109,12 @@ Exact values can be tuned after matrix review, but they must be attached to the 
 
 Change validation output from theme-level generic warnings like:
 
-- `WARN lovelace-semantic: dim/gray contrast 40 (<42)`
+- `WARN lovelace: dim/gray contrast 40 (<42)`
 
 to pair-specific diagnostics like:
 
-- `WARN lovelace-semantic: toolDiffContext on toolPendingBg contrast 39 (<45)`
-- `WARN mellow-semantic: thinkingText on bg contrast 40 (<42)`
+- `WARN lovelace: toolDiffContext on toolPendingBg contrast 39 (<45)`
+- `WARN mellow: thinkingText on bg contrast 40 (<42)`
 
 This makes remediation possible without guessing.
 
@@ -134,9 +134,9 @@ If `cap_contrast()` is not used after this review, remove it.
 
 Reassess:
 
-- `later-this-evening-semantic`
-- `lovelace-semantic`
-- `mellow-semantic`
+- `later-this-evening`
+- `lovelace`
+- `mellow`
 
 Questions to answer:
 

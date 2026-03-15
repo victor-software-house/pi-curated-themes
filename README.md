@@ -6,13 +6,15 @@ Curated dark terminal themes for [pi](https://github.com/badlogic/pi-mono), adap
 
 ## Variant naming
 
-Every theme name ends with a **variant suffix**:
+This package ships the semantic variant as the default theme name.
 
-| Suffix | Strategy | When to use |
-|---|---|---|
-| `-semantic` | Colors assigned by **function** (success = green, error = red, warning = amber) even if the source palette lacks those hues | Default for daily use |
+Examples:
 
-All themes currently ship as `-semantic` variants.
+- `catppuccin-mocha`
+- `lovelace`
+- `mellow`
+
+If alternate variants are introduced later, only the non-default variants should gain suffixes.
 
 ## Included themes (65)
 
@@ -65,11 +67,11 @@ Select a theme in `/settings`, or set it in `~/.pi/agent/settings.json`:
 
 ```json
 {
-  "theme": "catppuccin-mocha-semantic"
+  "theme": "catppuccin-mocha"
 }
 ```
 
-Theme names follow the pattern `{slugified-name}-semantic`.
+Theme names follow the pattern `{slugified-name}`.
 
 ## Development tools
 

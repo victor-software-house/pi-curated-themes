@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate pi semantic themes from iTerm2 .itermcolors files.
+"""Generate pi themes from iTerm2 .itermcolors files.
 
 Reads the curated list from curated.toml, parses .itermcolors XML plists,
 derives pi theme vars, stamps the static colors template, and writes JSON.
@@ -392,7 +392,7 @@ def generate_theme(name: str, g: dict, policy: dict) -> dict:
 
     return {
         "$schema": SCHEMA_URL,
-        "name": f"{slug}-semantic",
+        "name": slug,
         "vars": {
             "bg": bg,
             "fg": fg,
@@ -537,7 +537,7 @@ def validate_themes() -> bool:
     warnings = []
     theme_dir = OUTPUT_DIR
     for f in sorted(theme_dir.iterdir()):
-        if not f.name.endswith("-semantic.json"):
+        if not f.name.endswith(".json"):
             continue
         theme = json.loads(f.read_text())
         vars_map = theme.get("vars", {})
@@ -582,7 +582,7 @@ def validate_themes() -> bool:
         if warn_list:
             warnings.append((name, warn_list))
 
-    count = sum(1 for f in theme_dir.iterdir() if f.name.endswith("-semantic.json"))
+    count = sum(1 for f in theme_dir.iterdir() if f.name.endswith(".json"))
 
     if warnings:
         print(f"{len(warnings)} theme(s) with warnings:")
@@ -597,7 +597,7 @@ def validate_themes() -> bool:
         return False
 
     status = "pass" if not warnings else "pass (with warnings)"
-    print(f"All {count} semantic themes {status}")
+    print(f"All {count} themes {status}")
     return True
 
 
@@ -606,7 +606,7 @@ def validate_themes() -> bool:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate pi semantic themes from iTerm2 color schemes")
+    parser = argparse.ArgumentParser(description="Generate pi themes from iTerm2 color schemes")
     parser.add_argument("--name", nargs="+", help="Generate only named theme(s). Omit for all curated.")
     parser.add_argument("--validate", action="store_true", help="Validate existing themes without regenerating.")
     parser.add_argument("--schemes-dir", type=pathlib.Path, default=SCHEMES_DIR,
@@ -636,10 +636,10 @@ def main() -> None:
         g = parse_itermcolors(iterm_path)
         theme = generate_theme(name, g, policy)
         slug = slugify(name)
-        out = OUTPUT_DIR / f"{slug}-semantic.json"
+        out = OUTPUT_DIR / f"{slug}.json"
         out.write_text(json.dumps(theme, indent=2) + "\n")
         generated.append(name)
-        print(f"OK: {name} -> {slug}-semantic.json")
+        print(f"OK: {name} -> {slug}.json")
 
     print(f"\nGenerated {len(generated)} theme(s)")
     print()

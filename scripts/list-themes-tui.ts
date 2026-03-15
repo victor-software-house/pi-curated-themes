@@ -423,9 +423,9 @@ function buildPreviewComponents(tui: TUI, width: number): Component[] {
   );
 
   const bash = new BashExecutionComponent("python scripts/generate-pi-themes.py", tui);
-  bash.appendOutput("Generated 65 semantic themes\n");
-  bash.appendOutput("WARN later-this-evening-semantic: dim/gray contrast 39 (<42)\n");
-  bash.appendOutput("All 65 semantic themes pass (with warnings)\n");
+  bash.appendOutput("Generated 65 themes\n");
+  bash.appendOutput("WARN later-this-evening: muted on bg contrast 39 (<42)\n");
+  bash.appendOutput("All 65 themes pass (with warnings)\n");
   bash.setComplete(0, false);
 
   const codeTool = new ToolExecutionComponent(
@@ -693,7 +693,7 @@ function parseCuratedThemeNames(content: string): string[] {
 function buildCuratedSourceMap(content: string): Map<string, string> {
   const map = new Map<string, string>();
   for (const sourceName of parseCuratedThemeNames(content)) {
-    map.set(`${slugify(sourceName)}-semantic`, sourceName);
+    map.set(slugify(sourceName), sourceName);
   }
   return map;
 }
@@ -760,7 +760,7 @@ function loadOriginalTerminalTheme(sourcePath: string): OriginalTerminalTheme {
 }
 
 async function loadThemes(): Promise<ThemeRecord[]> {
-  const glob = new Bun.Glob("themes/*-semantic.json");
+  const glob = new Bun.Glob("themes/*.json");
   const themes: ThemeRecord[] = [];
   const curatedContent = await Bun.file(CURATED_TOML_PATH).text();
   const curatedSourceMap = buildCuratedSourceMap(curatedContent);
@@ -773,7 +773,7 @@ async function loadThemes(): Promise<ThemeRecord[]> {
       export?: { pageBg?: string; cardBg?: string; infoBg?: string };
     };
     const name = data.name ?? relativeThemePath(path).replace(/^themes\//, "").replace(/\.json$/, "");
-    const sourceName = curatedSourceMap.get(name) ?? name.replace(/-semantic$/, "");
+    const sourceName = curatedSourceMap.get(name) ?? name;
     const sourcePath = `${UPSTREAM_SCHEMES_DIR}/${sourceName}.itermcolors`;
     const background = data.export?.pageBg ?? data.vars?.bg ?? "#000000";
     const pageBg = data.export?.pageBg ?? data.vars?.bg ?? "#000000";
