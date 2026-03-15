@@ -46,23 +46,9 @@ Implemented in `scripts/generate-pi-themes.py`:
 
 Implemented:
 
-- Validation policy is externalized to `validation-policy.toml`
-- Validation is surface-aware rather than only checking `gray` versus `bg`
-- Pair-specific diagnostics identify the actual foreground/background usage
-
-Current warning themes after the latest generator run:
-
-- `arthur`
-- `gruvbox-material`
-- `ic-orange-ppl`
-- `later-this-evening`
-- `lovelace`
-- `mellow`
-
-Current warning classes:
-
-- `toolDiffContext` on tinted tool panels for several themes
-- base neutral readability (`muted`, `thinkingText`, `mdLinkUrl`, `mdQuote`) for the last three themes
+- Validation is intentionally lightweight
+- Generation no longer depends on an external validation policy file
+- Validation currently guards only against structurally bad outputs such as obvious semantic collisions
 
 ### Preview TUI
 
@@ -81,7 +67,6 @@ Implemented in `scripts/list-themes-tui.ts`:
 ### Source of truth and config
 
 - `curated.toml` — curated upstream theme list
-- `validation-policy.toml` — generation thresholds and validation policies
 - `AGENTS.md` — repository-level working rules
 - `README.md` — user-facing install, naming, preview, workflow, and validation documentation
 - `ROADMAP.md` — this continuation document and the sole planning document in the repository
@@ -116,7 +101,7 @@ Examples of the intended long-term model:
 
 ### Validation policy
 
-Do not validate only `gray` on `bg`. Validate actual rendered pi surface pairs.
+Keep validation lightweight unless a future task explicitly requires stronger policy enforcement again.
 
 ### Preview policy
 
@@ -137,20 +122,9 @@ Remaining improvements:
 - Consider a custom search overlay closer to Ghostty rather than only footer-driven search state.
 - Reduce remaining spacing mismatches in the preview pane where pi component layout differs from Ghostty’s preview structure.
 
-### 2. Decide whether to tune remaining warning themes
+### 2. Continue tuning visually sensitive themes
 
-Current warnings are explicit and narrow. The next product decision is whether these should remain warnings or whether generation should be tuned further.
-
-Recommended review order:
-
-1. `later-this-evening`
-2. `lovelace`
-3. `mellow`
-4. `arthur`
-5. `gruvbox-material`
-6. `ic-orange-ppl`
-
-For each theme, inspect:
+If individual themes still look off during review, inspect these values first:
 
 - `gray`
 - `diffContext`
@@ -158,25 +132,17 @@ For each theme, inspect:
 - `panelSuccess`
 - `panelError`
 
-Then decide whether to:
+Then retune generation heuristics only where the preview still looks unnatural.
 
-- accept current warning behavior
-- retune generation heuristics
-- or adjust policy thresholds in `validation-policy.toml`
+### 3. Continue visual tuning where needed
 
-### 3. Decide whether to broaden or keep the current validation matrix
+The main remaining theme work is visual tuning rather than policy work.
 
-The current matrix covers the highest-value rendered pairs and produces actionable warnings.
+Current focus areas:
 
-What is still open is whether to keep the matrix as-is or extend it further.
-
-Candidate additions to review only if they map to confirmed pi rendering paths:
-
-- `mdLink` on `bg`
-- `syntaxComment` on a representative code surface
-- any additional inherited-foreground pair actually used in pi but not yet validated
-
-Do not add pairs only because tokens exist. Keep the validator grounded in real rendering usage.
+- keep tool success panels quieter than tool error panels
+- keep read and edit panels closer to the source palette identity
+- keep diff colors readable without making them feel detached from the base theme
 
 ## Recommended next-session workflow
 
@@ -186,7 +152,6 @@ When resuming in a new session, follow this order:
    - `AGENTS.md`
    - `README.md`
    - `ROADMAP.md`
-   - `validation-policy.toml`
 2. Confirm current validation state:
    - `jq empty themes/*.json`
    - `mise x -- python3 scripts/generate-pi-themes.py --validate`
@@ -235,10 +200,6 @@ Do not reintroduce `-semantic` to default theme names.
 ### Preview terminal overrides are intentional
 
 The preview temporarily changes terminal foreground/background/cursor and ANSI palette using the original upstream terminal theme. That behavior is expected and should be preserved unless a better source-grounded method replaces it.
-
-### Policy values now belong in `validation-policy.toml`
-
-Do not bury new policy thresholds directly inside generator logic unless there is a compelling implementation-only reason.
 
 ### Keep committed files human-facing
 

@@ -19,9 +19,9 @@
     "success": "#49e998",
     "error": "#fb9435",
     "warning": "#e5e57f",
-    "diffAdded": "#7fefb6",
-    "diffRemoved": "#fcb471",
-    "diffContext": "#404a55"
+    "diffAdded": "#b9f6d7",
+    "diffRemoved": "#fdd2aa",
+    "diffContext": "#dcdee0"
   },
   "colors": {
     "accent": "accent",

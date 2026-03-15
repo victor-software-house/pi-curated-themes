@@ -35,10 +35,6 @@ This directory is gitignored. The upstream repo is not a submodule — it is a s
 
 `curated.toml` contains the list of theme names to generate. Names must match the upstream `schemes/` directory exactly (without `.itermcolors` extension). To add or remove themes, edit this file and regenerate.
 
-### Validation policy
-
-`validation-policy.toml` contains generator and validator policy values. When adjusting surface thresholds or derived contrast targets, update that file instead of hardcoding new policy values directly in scripts.
-
 ### Roadmap
 
 `ROADMAP.md` tracks implemented work, remaining work, and recommended next-session continuation steps.

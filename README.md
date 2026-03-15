@@ -36,8 +36,6 @@ Twilight, Vague, Vesper, Xcode Dark hc
 
 The curation list is in `curated.toml`.
 
-Validation and generation thresholds live in `validation-policy.toml`.
-
 The current implementation roadmap is in `ROADMAP.md`.
 
 ## What "semantic" means
@@ -119,71 +117,13 @@ mise x -- python3 scripts/generate-pi-themes.py --name "Catppuccin Mocha"
 mise x -- python3 scripts/generate-pi-themes.py --validate
 ```
 
-## Validation policy
+## Validation
 
-Validation is driven by `validation-policy.toml`.
+Validation is intentionally lightweight.
 
-That file currently controls:
+Current validation checks only for generator output that is structurally unusable, such as collisions where `accent` becomes identical to `error`.
 
-- generation thresholds for derived `diffContext`
-- validation thresholds for surface classes
-- the foreground/background pair matrix used by the validator
-
-### Generation thresholds vs validation thresholds
-
-Generation thresholds shape derived colors during theme creation.
-
-Current examples:
-
-- minimum `diffContext` contrast on the pending tool panel
-- minimum `diffContext` contrast on tinted success and error tool panels
-
-Validation thresholds are applied after generation. They decide whether the finished theme passes, warns, or fails for a specific rendered foreground/background pair.
-
-Current threshold classes:
-
-- `base_neutral`
-- `panel_neutral`
-- `tinted_panel_neutral`
-- `text_on_panel`
-
-### What the validator checks
-
-The validator checks specific rendered pairs from `validation-policy.toml`, not only neutral text against the base background.
-
-Current pairs include:
-
-- `muted` on `bg`
-- `thinkingText` on `bg`
-- `mdLinkUrl` on `bg`
-- `mdQuote` on `bg`
-- `userMessageText` on `userMessageBg`
-- `customMessageText` on `customMessageBg`
-- `toolOutput` on `toolPendingBg`
-- `toolOutput` on `toolSuccessBg`
-- `toolOutput` on `toolErrorBg`
-- `toolDiffContext` on `toolPendingBg`
-- `toolDiffContext` on `toolSuccessBg`
-- `toolDiffContext` on `toolErrorBg`
-
-### How to interpret warnings
-
-A warning means the theme still passes validation, but one or more rendered pairs fall below the warning threshold for their surface class.
-
-Example:
-
-```text
-WARN lovelace: muted on bg contrast 40 (<42)
-```
-
-That means:
-
-- the theme is still generated and usable
-- the specific rendered pair is identified
-- the measured contrast is below the warning threshold
-- the result did not cross the hard-fail threshold
-
-Warnings now refer to actual rendered pairs, for example `toolDiffContext on toolErrorBg`, instead of only `gray` against base background.
+The project no longer uses a separate policy file for contrast thresholds or pair-matrix validation.
 
 ## Upstream
 

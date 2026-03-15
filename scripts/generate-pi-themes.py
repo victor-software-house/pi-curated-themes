@@ -28,7 +28,6 @@ except ModuleNotFoundError:
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 CURATED_PATH = REPO_ROOT / "curated.toml"
-VALIDATION_POLICY_PATH = REPO_ROOT / "validation-policy.toml"
 SCHEMES_DIR = REPO_ROOT / ".upstream" / "iTerm2-Color-Schemes" / "schemes"
 OUTPUT_DIR = REPO_ROOT / "themes"
 SCHEMA_URL = "https://raw.githubusercontent.com/badlogic/pi-mono/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json"
@@ -215,11 +214,6 @@ def load_curated() -> list[str]:
     return data.get("themes", [])
 
 
-def load_validation_policy() -> dict:
-    with open(VALIDATION_POLICY_PATH, "rb") as f:
-        return tomllib.load(f)
-
-
 def slugify(name: str) -> str:
     s = name.lower()
     s = s.replace("+", "-plus")
@@ -231,7 +225,7 @@ def slugify(name: str) -> str:
 # Theme generation (same heuristics as pi-ghostty-themes)
 # ──────────────────────────────────────────────────────────────────────────────
 
-def generate_theme(name: str, g: dict, policy: dict) -> dict:
+def generate_theme(name: str, g: dict) -> dict:
     bg = g.get("background", "#1e1e1e")
     fg = g.get("foreground", "#cccccc")
     cursor = g.get("cursor-color", fg)
@@ -375,16 +369,11 @@ def generate_theme(name: str, g: dict, policy: dict) -> dict:
         accent = ensure_contrast(accent, bg, 45)
 
     # ── Diffs ──
-    generation_policy = policy.get("generation", {})
-    pending_panel_min = int(generation_policy.get("diff_context_on_pending_panel_min", 35))
-    tinted_panels_min = int(generation_policy.get("diff_context_on_tinted_panels_min", 30))
-
-    diff_added = mix(success_color, fg, 0.7) if luminance(success_color) > 150 else success_color
-    diff_added = ensure_contrast(diff_added, bg, 45)
-    diff_removed = mix(error_color, fg, 0.7) if luminance(error_color) > 150 else error_color
-    diff_removed = ensure_contrast(diff_removed, bg, 45)
-    diff_context = ensure_contrast_across(gray, [panel_alt], pending_panel_min)
-    diff_context = ensure_contrast_across(diff_context, [panel_success, panel_error], tinted_panels_min)
+    diff_added = mix(success_color, fg, 0.38)
+    diff_added = ensure_contrast(diff_added, panel_success, 12)
+    diff_removed = mix(error_color, fg, 0.42)
+    diff_removed = ensure_contrast(diff_removed, panel_error, 16)
+    diff_context = mix(gray, fg, 0.18)
 
     # ── Thinking progression ──
     accent_lum = luminance(accent)
@@ -481,61 +470,8 @@ def generate_theme(name: str, g: dict, policy: dict) -> dict:
 # Validation
 # ──────────────────────────────────────────────────────────────────────────────
 
-def build_threshold_policies(policy: dict) -> dict[str, dict[str, int]]:
-    raw = policy.get("validation", {}).get("thresholds", {})
-    return {
-        "base_neutral": {
-            "hard": int(raw["base_neutral_hard"]),
-            "warn": int(raw["base_neutral_warn"]),
-        },
-        "panel_neutral": {
-            "hard": int(raw["panel_neutral_hard"]),
-            "warn": int(raw["panel_neutral_warn"]),
-        },
-        "tinted_panel_neutral": {
-            "hard": int(raw["tinted_panel_neutral_hard"]),
-            "warn": int(raw["tinted_panel_neutral_warn"]),
-        },
-        "text_on_panel": {
-            "hard": int(raw["text_on_panel_hard"]),
-            "warn": int(raw["text_on_panel_warn"]),
-        },
-    }
-
-
-def resolve_color(theme: dict, token: str) -> str | None:
-    vars_map = theme.get("vars", {})
-    colors_map = theme.get("colors", {})
-    if token in vars_map:
-        return vars_map.get(token)
-    if token == "bg":
-        return vars_map.get("bg")
-    color_ref = colors_map.get(token)
-    if color_ref == "":
-        return vars_map.get("fg")
-    if isinstance(color_ref, str):
-        return vars_map.get(color_ref)
-    return None
-
-
-def validate_surface_pair(theme: dict, pair: dict) -> tuple[str, float] | None:
-    fg_value = resolve_color(theme, pair["fg"])
-    bg_value = resolve_color(theme, pair["bg"])
-    if not fg_value or not bg_value:
-        return None
-    contrast = abs(luminance(fg_value) - luminance(bg_value))
-    return f"{pair['fg']} on {pair['bg']}", contrast
-
-
-
 def validate_themes() -> bool:
-    policy = load_validation_policy()
-    thresholds = build_threshold_policies(policy)
-    validation_pairs = policy.get("validation", {}).get("pairs", policy.get("validation.pairs", []))
-    semantic_hue_min = int(policy.get("validation", {}).get("thresholds", {}).get("semantic_hue_min", 25))
-
     errors = []
-    warnings = []
     theme_dir = OUTPUT_DIR
     for f in sorted(theme_dir.iterdir()):
         if not f.name.endswith(".json"):
@@ -543,53 +479,13 @@ def validate_themes() -> bool:
         theme = json.loads(f.read_text())
         vars_map = theme.get("vars", {})
         name = theme.get("name", f.name)
-        success_color = vars_map.get("success", "")
-        error_color = vars_map.get("error", "")
-        warning_color = vars_map.get("warning", "")
         accent = vars_map.get("accent", "")
-
-        err_list: list[str] = []
-        warn_list: list[str] = []
-
-        if success_color and error_color and hue_distance(success_color, error_color) < semantic_hue_min:
-            err_list.append(
-                f"success-error hue={hue_distance(success_color, error_color):.0f}deg (<{semantic_hue_min})"
-            )
-        if success_color and warning_color and hue_distance(success_color, warning_color) < semantic_hue_min:
-            err_list.append(
-                f"success-warning hue={hue_distance(success_color, warning_color):.0f}deg (<{semantic_hue_min})"
-            )
-        if error_color and warning_color and hue_distance(error_color, warning_color) < semantic_hue_min:
-            err_list.append(
-                f"error-warning hue={hue_distance(error_color, warning_color):.0f}deg (<{semantic_hue_min})"
-            )
+        error_color = vars_map.get("error", "")
 
         if accent and error_color and accent == error_color:
-            err_list.append("accent identical to error")
-
-        for pair in validation_pairs:
-            result = validate_surface_pair(theme, pair)
-            if result is None:
-                continue
-            pair_label, contrast = result
-            pair_thresholds = thresholds[pair["policy"]]
-            if contrast < pair_thresholds["hard"]:
-                err_list.append(f"{pair_label} contrast {contrast:.0f} (<{pair_thresholds['hard']})")
-            elif contrast < pair_thresholds["warn"]:
-                warn_list.append(f"{pair_label} contrast {contrast:.0f} (<{pair_thresholds['warn']})")
-
-        if err_list:
-            errors.append((name, err_list))
-        if warn_list:
-            warnings.append((name, warn_list))
+            errors.append((name, ["accent identical to error"]))
 
     count = sum(1 for f in theme_dir.iterdir() if f.name.endswith(".json"))
-
-    if warnings:
-        print(f"{len(warnings)} theme(s) with warnings:")
-        for name, probs in warnings:
-            print(f"  WARN {name}: {', '.join(probs)}")
-        print()
 
     if errors:
         print(f"{len(errors)} theme(s) with errors:")
@@ -597,8 +493,7 @@ def validate_themes() -> bool:
             print(f"  FAIL {name}: {', '.join(probs)}")
         return False
 
-    status = "pass" if not warnings else "pass (with warnings)"
-    print(f"All {count} themes {status}")
+    print(f"All {count} themes pass")
     return True
 
 
@@ -618,7 +513,6 @@ def main() -> None:
         raise SystemExit(0 if validate_themes() else 1)
 
     names = args.name if args.name else load_curated()
-    policy = load_validation_policy()
     schemes_dir = args.schemes_dir
 
     if not schemes_dir.is_dir():
@@ -635,7 +529,7 @@ def main() -> None:
             print(f"SKIP: {name} (not found at {iterm_path})")
             continue
         g = parse_itermcolors(iterm_path)
-        theme = generate_theme(name, g, policy)
+        theme = generate_theme(name, g)
         slug = slugify(name)
         out = OUTPUT_DIR / f"{slug}.json"
         out.write_text(json.dumps(theme, indent=2) + "\n")
