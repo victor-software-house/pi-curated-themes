@@ -27,9 +27,7 @@ jobs:
         run: npm install
 
       - name: Validate themes
-        run: |
-          jq empty themes/*.json
-          python3 scripts/generate-pi-themes.py --validate
+        run: mise run themes:validate
 
       - name: Publish package
         run: npm publish --access public --provenance

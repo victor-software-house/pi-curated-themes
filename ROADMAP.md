@@ -174,13 +174,13 @@ mise run preview -- all
 
 ```bash
 jq empty themes/*.json
-./scripts/generate-pi-themes.py --validate
+mise run themes:validate
 ```
 
 ### Regenerate themes
 
 ```bash
-./scripts/generate-pi-themes.py
+mise run themes:generate
 ```
 
 ### Fetch upstream

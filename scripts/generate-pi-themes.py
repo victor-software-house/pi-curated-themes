@@ -8,10 +8,12 @@
 Reads the curated list from curated.toml, parses .itermcolors XML plists,
 derives pi theme vars, stamps the static colors template, and writes JSON.
 
-Usage:
-    ./scripts/generate-pi-themes.py                  # generate all
-    ./scripts/generate-pi-themes.py --name "Gruvbox Dark"  # generate one
-    ./scripts/generate-pi-themes.py --validate        # check only
+Primary usage:
+    mise run themes:generate                         # generate all curated themes
+    mise run themes:generate --name "Gruvbox Dark"  # generate one
+    mise run themes:validate                         # check only
+
+Direct script execution is an implementation detail behind the mise tasks.
 """
 from __future__ import annotations
 

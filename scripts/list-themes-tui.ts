@@ -552,7 +552,7 @@ function buildPreviewComponents(tui: TUI, width: number): Component[] {
     markdownTheme,
   );
 
-  const bash = new BashExecutionComponent("python scripts/generate-pi-themes.py", tui);
+  const bash = new BashExecutionComponent("mise run themes:generate", tui);
   bash.appendOutput("Generated 65 themes\n");
   bash.appendOutput("WARN later-this-evening: muted on bg contrast 39 (<42)\n");
   bash.appendOutput("All 65 themes pass (with warnings)\n");

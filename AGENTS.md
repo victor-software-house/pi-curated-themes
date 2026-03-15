@@ -87,3 +87,15 @@ Before committing:
 jq empty themes/*.json
 mise run themes:validate
 ```
+
+## Task invocation policy
+
+Use mise tasks for repository workflows when a task exists.
+
+Required rules:
+- Do not invoke repository workflows through `python`, `python3`, or direct script paths when a matching `mise run` task exists.
+- For theme generation, always use `mise run themes:generate`.
+- For theme validation, always use `mise run themes:validate`.
+- For preview, always use `mise run preview`.
+
+The standalone scripts exist as task implementation details, not the primary documented interface.
