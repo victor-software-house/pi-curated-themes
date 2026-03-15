@@ -19,6 +19,7 @@
   "files": [
     "themes",
     "skills",
+    "assets",
     "README.md",
     "LICENSE"
   ],
@@ -38,7 +39,8 @@
     ],
     "skills": [
       "./skills"
-    ]
+    ],
+    "image": "https://raw.githubusercontent.com/victor-software-house/pi-curated-themes/main/assets/package-preview.png"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.4.4",
