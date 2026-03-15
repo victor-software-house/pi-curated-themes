@@ -35,13 +35,21 @@ This directory is gitignored. The upstream repo is not a submodule — it is a s
 
 `curated.toml` contains the list of theme names to generate. Names must match the upstream `schemes/` directory exactly (without `.itermcolors` extension). To add or remove themes, edit this file and regenerate.
 
+### Validation policy
+
+`validation-policy.toml` contains generator and validator policy values. When adjusting surface thresholds or derived contrast targets, update that file instead of hardcoding new policy values directly in scripts.
+
+### Roadmap
+
+`ROADMAP.md` tracks implemented work, remaining work, and recommended next-session continuation steps.
+
 ## Theme change policy
 
 When editing themes:
-- Keep theme names stable unless the user explicitly requests a rename.
+- Default public theme names are unsuffixed. Do not reintroduce `-semantic` for the default variant.
 - Treat visual tuning and readability fixes as patch-level changes.
 - Treat new theme variants as minor-level changes.
-- Treat renames, removals, or package structure changes as major-level changes.
+- Treat renames, removals, or package structure changes as major-level changes unless the user explicitly directs otherwise.
 - Preserve the source palette identity unless the task explicitly asks for a different direction.
 - Validate all theme JSON files after changes.
 

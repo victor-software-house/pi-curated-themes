@@ -38,6 +38,8 @@ The curation list is in `curated.toml`.
 
 Validation and generation thresholds live in `validation-policy.toml`.
 
+The current implementation roadmap is in `ROADMAP.md`.
+
 ## What "semantic" means
 
 Source palettes define 16 ANSI colors plus background/foreground/cursor. pi requires 51 tokens for tool panels, diff colors, markdown, syntax highlighting, thinking borders, and footer readability.
@@ -99,6 +101,8 @@ mise run preview -- all
 
 The task runs `scripts/list-themes-tui.ts`, which uses Bun to resolve its npm dependencies on demand.
 
+The preview currently uses a TypeScript example snippet so syntax highlighting matches supported pi preview behavior.
+
 ## Generating themes
 
 ```bash
@@ -114,6 +118,18 @@ mise x -- python3 scripts/generate-pi-themes.py --name "Catppuccin Mocha"
 # 4. Validate without regenerating
 mise x -- python3 scripts/generate-pi-themes.py --validate
 ```
+
+## Validation policy
+
+Validation is driven by `validation-policy.toml`.
+
+That file currently controls:
+
+- generation thresholds for derived `diffContext`
+- validation thresholds for surface classes
+- the foreground/background pair matrix used by the validator
+
+Warnings now refer to actual rendered pairs, for example `toolDiffContext on toolErrorBg`, instead of only `gray` against base background.
 
 ## Upstream
 
