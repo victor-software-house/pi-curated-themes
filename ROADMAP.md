@@ -83,8 +83,8 @@ Implemented in `scripts/list-themes-tui.ts`:
 - `curated.toml` — curated upstream theme list
 - `validation-policy.toml` — generation thresholds and validation policies
 - `AGENTS.md` — repository-level working rules
-- `README.md` — user-facing install, naming, preview, and workflow documentation
-- `ROADMAP.md` — this continuation document
+- `README.md` — user-facing install, naming, preview, workflow, and validation documentation
+- `ROADMAP.md` — this continuation document and the sole planning document in the repository
 
 ### Scripts
 
@@ -164,25 +164,19 @@ Then decide whether to:
 - retune generation heuristics
 - or adjust policy thresholds in `validation-policy.toml`
 
-### 3. Improve policy documentation
+### 3. Decide whether to broaden or keep the current validation matrix
 
-README mentions `validation-policy.toml`, but it does not yet explain:
+The current matrix covers the highest-value rendered pairs and produces actionable warnings.
 
-- the difference between generation thresholds and validation thresholds
-- how to interpret warnings
-- which rendered surface pairs are validated
+What is still open is whether to keep the matrix as-is or extend it further.
 
-Add a short documentation section after the current generation section.
+Candidate additions to review only if they map to confirmed pi rendering paths:
 
-### 4. Keep roadmap and plan aligned
+- `mdLink` on `bg`
+- `syntaxComment` on a representative code surface
+- any additional inherited-foreground pair actually used in pi but not yet validated
 
-`PLAN-surface-aware-validation.md` began as a formal implementation plan. Parts of it are now implemented.
-
-A later cleanup should:
-
-- mark completed parts explicitly
-- reduce duplication between `PLAN-surface-aware-validation.md` and `ROADMAP.md`
-- possibly merge them if one document becomes redundant
+Do not add pairs only because tokens exist. Keep the validator grounded in real rendering usage.
 
 ## Recommended next-session workflow
 

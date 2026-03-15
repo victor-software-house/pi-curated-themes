@@ -71,6 +71,18 @@ Use Conventional Commits:
 - `feat!:` or `BREAKING CHANGE:` -> major
 - `docs:` and `chore:` -> no release
 
+## Commit frequency
+
+Commit repository work frequently.
+
+Use these rules:
+
+- Commit after each self-contained documentation, generator, validation, or preview change.
+- Do not keep validated work uncommitted while starting the next task.
+- If a task has multiple distinct steps, commit after each step that leaves the repository in a coherent passing state.
+- Run repository validation before each commit.
+- Push completed commits promptly unless the user explicitly asks to keep work local.
+
 ## Validation
 
 Before committing:
