@@ -8,11 +8,11 @@ import {
   matchesKey,
   ProcessTerminal,
   SelectList,
-  type SelectItem,
   TUI,
   truncateToWidth,
   visibleWidth,
   type Component,
+  type SelectItem,
 } from "@mariozechner/pi-tui";
 import {
   AssistantMessageComponent,
@@ -21,7 +21,7 @@ import {
   DynamicBorder,
   getMarkdownTheme,
   getSelectListTheme,
-  initTheme,
+  Theme,
   ToolExecutionComponent,
   UserMessageComponent,
 } from "@mariozechner/pi-coding-agent";
@@ -43,7 +43,8 @@ type ThemeRecord = {
   background: string;
   pageBg: string;
   isDark: boolean;
-  originalTerminalTheme?: OriginalTerminalTheme;
+  originalTerminalTheme: OriginalTerminalTheme;
+  previewTheme: Theme;
 };
 
 const SCRIPT_DIR = import.meta.dir;
@@ -53,11 +54,15 @@ const UPSTREAM_SCHEMES_DIR = `${REPO_ROOT}/.upstream/iTerm2-Color-Schemes/scheme
 const CURATED_TOML_PATH = `${REPO_ROOT}/curated.toml`;
 const AGENT_DIR_ENV = "PI_CODING_AGENT_DIR";
 const DEFAULT_MODE: ThemeMode = parseMode(Bun.argv[2]);
+const THEME_LIST_JUMP_SIZE = 20;
 let terminalCleanedUp = false;
 
 class ThemeBrowser implements Component {
   private readonly tui: TUI;
   private readonly allThemes: ThemeRecord[];
+  private readonly themeByName: Map<string, ThemeRecord>;
+  private previewComponents: Component[] = [];
+  private readonly previewLinesCache = new Map<string, string[]>();
   private mode: ThemeMode;
   private helpMode = false;
   private searchMode = false;
@@ -66,12 +71,12 @@ class ThemeBrowser implements Component {
   private listVisibleRows = 18;
   private list: SelectList;
   private selectedTheme?: ThemeRecord;
-  private previewComponents: Component[] = [];
   private previewWidth = 72;
 
   constructor(tui: TUI, themes: ThemeRecord[], mode: ThemeMode) {
     this.tui = tui;
     this.allThemes = themes;
+    this.themeByName = new Map(themes.map((theme) => [theme.name, theme]));
     this.mode = mode;
     this.list = this.createSelectList([], this.listVisibleRows);
     this.resetItems();
@@ -86,16 +91,7 @@ class ThemeBrowser implements Component {
 
   handleInput(data: string): void {
     if (this.helpMode) {
-      if (matchesKey(data, Key.escape) || data === "?" || matchesKey(data, Key.f1) || matchesKey(data, Key.ctrl("h"))) {
-        this.helpMode = false;
-        this.tui.requestRender();
-        return;
-      }
-      if (matchesKey(data, Key.ctrl("c")) || data === "q" || data === "Q") {
-        this.tui.stop();
-        cleanupTerminal();
-        process.exit(0);
-      }
+      this.handleHelpInput(data);
       return;
     }
 
@@ -104,10 +100,9 @@ class ThemeBrowser implements Component {
       return;
     }
 
-    if (matchesKey(data, Key.ctrl("c")) || matchesKey(data, Key.escape) || data === "q" || data === "Q") {
-      this.tui.stop();
-      cleanupTerminal();
-      process.exit(0);
+    if (this.shouldQuit(data)) {
+      this.stop();
+      return;
     }
 
     if (data === "?" || matchesKey(data, Key.f1) || matchesKey(data, Key.ctrl("h"))) {
@@ -135,42 +130,36 @@ class ThemeBrowser implements Component {
     }
 
     if (matchesKey(data, "home")) {
-      this.list.setSelectedIndex(0);
-      this.selectThemeByIndex(0);
+      this.selectListIndex(0);
       return;
     }
 
     if (matchesKey(data, "end")) {
-      const last = Math.max(0, this.items.length - 1);
-      this.list.setSelectedIndex(last);
-      this.selectThemeByIndex(last);
+      this.selectListIndex(Math.max(0, this.items.length - 1));
       return;
     }
 
     if (matchesKey(data, "page_down")) {
-      this.moveSelection(20);
+      this.moveSelection(THEME_LIST_JUMP_SIZE);
       return;
     }
 
     if (matchesKey(data, "page_up")) {
-      this.moveSelection(-20);
+      this.moveSelection(-THEME_LIST_JUMP_SIZE);
       return;
     }
 
     if (data === "j" || data === "+") {
-      this.list.handleInput("\x1b[B");
-      this.tui.requestRender();
+      this.forwardListInput("\x1b[B");
       return;
     }
 
     if (data === "k" || data === "-") {
-      this.list.handleInput("\x1b[A");
-      this.tui.requestRender();
+      this.forwardListInput("\x1b[A");
       return;
     }
 
-    this.list.handleInput(data);
-    this.tui.requestRender();
+    this.forwardListInput(data);
   }
 
   render(width: number): string[] {
@@ -188,52 +177,20 @@ class ThemeBrowser implements Component {
     if (this.helpMode) {
       body = overlayLines(body, buildHelpOverlay(width, bodyRows));
     }
-    const footer = this.renderFooter(width);
 
-    return [...body, footer];
+    return [...body, this.renderFooter(width)];
   }
 
-  private renderPreview(width: number): string[] {
-    if (!this.selectedTheme) {
-      return [padVisible(centerText("No theme selected", width), width)];
+  private handleHelpInput(data: string): void {
+    if (matchesKey(data, Key.escape) || data === "?" || matchesKey(data, Key.f1) || matchesKey(data, Key.ctrl("h"))) {
+      this.helpMode = false;
+      this.tui.requestRender();
+      return;
     }
 
-    const lines: string[] = [];
-    const nameLine = centerText(this.selectedTheme.name, width);
-    const pathLine = centerText(relativeThemePath(this.selectedTheme.sourcePath), width);
-    const metaLine = centerText(`mode:${this.mode}  themes:${this.items.length}`, width);
-    const sectionBorder = new DynamicBorder();
-
-    lines.push(nameLine, pathLine, metaLine);
-
-    for (let index = 0; index < this.previewComponents.length; index++) {
-      if (index > 0) {
-        lines.push(...sectionBorder.render(width));
-      }
-      const rendered = this.previewComponents[index].render(width);
-      lines.push(...(index === 0 ? trimLeadingEmptyLines(rendered) : rendered));
+    if (this.shouldQuit(data)) {
+      this.stop();
     }
-
-    return lines.map((line) => truncateToWidth(line, width));
-  }
-
-  private renderThemeList(width: number, rows: number): string[] {
-    const lines = this.list.render(width).map((line) => truncateToWidth(line, width));
-    return padToRows(lines, rows, "");
-  }
-
-  private renderFooter(width: number): string {
-    const search = this.searchMode
-      ? `/ ${this.searchQuery}`
-      : this.searchQuery
-        ? `filter:${this.searchQuery}`
-        : `filter:${this.mode}`;
-    const help = this.helpMode
-      ? "esc/? close help"
-      : this.searchMode
-        ? "enter/esc close  ctrl+x clear"
-        : "j/k move  pgup/pgdn jump  / search  ? help  f filter  q quit";
-    return padVisible(truncateToWidth(`${search}  ${help}`, width), width);
   }
 
   private handleSearchInput(data: string): void {
@@ -264,23 +221,93 @@ class ThemeBrowser implements Component {
     }
   }
 
+  private shouldQuit(data: string): boolean {
+    return matchesKey(data, Key.ctrl("c")) || matchesKey(data, Key.escape) || data === "q" || data === "Q";
+  }
+
+  private stop(): void {
+    this.tui.stop();
+    cleanupTerminal();
+    process.exit(0);
+  }
+
+  private forwardListInput(data: string): void {
+    this.list.handleInput(data);
+  }
+
+  private renderPreview(width: number): string[] {
+    if (!this.selectedTheme) {
+      return [padVisible(centerText("No theme selected", width), width)];
+    }
+
+    const cacheKey = `${this.selectedTheme.name}:${width}`;
+    const cached = this.previewLinesCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const lines: string[] = [
+      centerText(this.selectedTheme.name, width),
+      centerText(relativeThemePath(this.selectedTheme.sourcePath), width),
+      centerText(`mode:${this.mode}  themes:${this.items.length}`, width),
+    ];
+    const sectionBorder = new DynamicBorder();
+
+    for (let index = 0; index < this.previewComponents.length; index++) {
+      if (index > 0) {
+        lines.push(...sectionBorder.render(width));
+      }
+      const rendered = this.previewComponents[index].render(width);
+      lines.push(...(index === 0 ? trimLeadingEmptyLines(rendered) : rendered));
+    }
+
+    const normalized = lines.map((line) => truncateToWidth(line, width));
+    this.previewLinesCache.set(cacheKey, normalized);
+    return normalized;
+  }
+
+  private renderThemeList(width: number, rows: number): string[] {
+    const lines = this.list.render(width).map((line) => truncateToWidth(line, width));
+    return padToRows(lines, rows, "");
+  }
+
+  private renderFooter(width: number): string {
+    const search = this.searchMode
+      ? `/ ${this.searchQuery}`
+      : this.searchQuery
+        ? `filter:${this.searchQuery}`
+        : `filter:${this.mode}`;
+    const help = this.helpMode
+      ? "esc/? close help"
+      : this.searchMode
+        ? "enter/esc close  ctrl+x clear"
+        : "j/k move  pgup/pgdn jump  / search  ? help  f filter  q quit";
+    return padVisible(truncateToWidth(`${search}  ${help}`, width), width);
+  }
+
   private moveSelection(delta: number): void {
     const currentIndex = Math.max(0, this.items.findIndex((item) => item.value === this.selectedTheme?.name));
     const nextIndex = Math.max(0, Math.min(this.items.length - 1, currentIndex + delta));
-    this.list.setSelectedIndex(nextIndex);
-    this.selectThemeByIndex(nextIndex);
+    this.selectListIndex(nextIndex);
   }
 
-  private selectThemeByIndex(index: number): void {
+  private selectListIndex(index: number): void {
+    this.list.setSelectedIndex(index);
+    this.activateSelectedItem(index);
+  }
+
+  private activateSelectedItem(index: number): void {
     const item = this.items[index];
     if (!item) {
       return;
     }
-    const theme = this.findTheme(item.value);
-    if (theme) {
-      this.setTheme(theme);
-      this.tui.requestRender();
+
+    const theme = this.themeByName.get(item.value);
+    if (!theme) {
+      return;
     }
+
+    this.activateTheme(theme);
   }
 
   private cycleMode(): void {
@@ -297,9 +324,9 @@ class ThemeBrowser implements Component {
   private createSelectList(items: SelectItem[], maxVisible: number): SelectList {
     const list = new SelectList(items, maxVisible, getSelectListTheme());
     list.onSelectionChange = (item) => {
-      const theme = this.findTheme(item.value);
+      const theme = this.themeByName.get(item.value);
       if (theme) {
-        this.setTheme(theme);
+        this.activateTheme(theme);
       }
     };
     list.onSelect = list.onSelectionChange;
@@ -320,20 +347,17 @@ class ThemeBrowser implements Component {
   private resetItems(): void {
     const currentName = this.selectedTheme?.name;
     const filteredThemes = this.getThemesForMode();
-    this.items = filteredThemes.map((theme) => ({
-      value: theme.name,
-      label: theme.name,
-    }));
-
+    this.items = filteredThemes.map((theme) => ({ value: theme.name, label: theme.name }));
     this.list = this.createSelectList(this.items, this.listVisibleRows);
 
-    const nextTheme =
-      (currentName ? filteredThemes.find((theme) => theme.name === currentName) : undefined) ?? filteredThemes[0];
-
-    if (nextTheme) {
-      this.list.setSelectedIndex(Math.max(0, filteredThemes.findIndex((theme) => theme.name === nextTheme.name)));
-      this.setTheme(nextTheme);
+    const nextTheme = (currentName ? filteredThemes.find((theme) => theme.name === currentName) : undefined) ?? filteredThemes[0];
+    if (!nextTheme) {
+      this.selectedTheme = undefined;
+      return;
     }
+
+    this.list.setSelectedIndex(Math.max(0, filteredThemes.findIndex((theme) => theme.name === nextTheme.name)));
+    this.activateTheme(nextTheme);
   }
 
   private getThemesForMode(): ThemeRecord[] {
@@ -357,22 +381,15 @@ class ThemeBrowser implements Component {
     return byMode.filter((theme) => tokens.every((token) => theme.name.toLowerCase().includes(token)));
   }
 
-  private findTheme(name: string): ThemeRecord | undefined {
-    return this.allThemes.find((theme) => theme.name === name);
-  }
-
-  private setTheme(theme: ThemeRecord): void {
-    if (this.selectedTheme?.name === theme.name && this.previewComponents.length > 0) {
+  private activateTheme(theme: ThemeRecord): void {
+    if (this.selectedTheme?.name === theme.name) {
       return;
     }
 
     process.env[AGENT_DIR_ENV] = REPO_ROOT;
     process.env.COLORTERM = process.env.COLORTERM || "truecolor";
-    if (!theme.originalTerminalTheme) {
-      theme.originalTerminalTheme = loadOriginalTerminalTheme(theme.sourcePath);
-    }
     applyTerminalTheme(theme.originalTerminalTheme);
-    initTheme(theme.name);
+    setPreviewThemeInstance(theme.previewTheme);
 
     this.selectedTheme = theme;
     if (this.previewComponents.length === 0) {
@@ -445,17 +462,17 @@ function buildPreviewComponents(tui: TUI, width: number): Component[] {
           type: "text",
           text: [
             'type ThemeMode = "dark" | "light" | "all";',
-            '',
-            'export function formatPreviewTitle(name: string, mode: ThemeMode): string {',
-            '  return `${name} · ${mode}`;',
-            '}',
-            '',
-            'export function weakestPairs(values: Array<{ label: string; contrast: number }>) {',
-            '  return values',
-            '    .filter((pair) => pair.contrast < 42)',
-            '    .sort((left, right) => left.contrast - right.contrast)',
-            '    .slice(0, 3);',
-            '}',
+            "",
+            "export function formatPreviewTitle(name: string, mode: ThemeMode): string {",
+            "  return `${name} · ${mode}`;",
+            "}",
+            "",
+            "export function weakestPairs(values: Array<{ label: string; contrast: number }>) {",
+            "  return values",
+            "    .filter((pair) => pair.contrast < 42)",
+            "    .sort((left, right) => left.contrast - right.contrast)",
+            "    .slice(0, 3);",
+            "}",
           ].join("\n"),
         },
       ],
@@ -490,11 +507,9 @@ function buildPreviewComponents(tui: TUI, width: number): Component[] {
   );
 
   const samples: Component[] = [user, assistant, custom, bash, codeTool, editTool];
-
   for (const sample of samples) {
     sample.render(width);
   }
-
   return samples;
 }
 
@@ -613,19 +628,12 @@ function leaveAlternateScreen(): void {
 }
 
 function applyTerminalTheme(theme: OriginalTerminalTheme): void {
-  process.stdout.write(osc("10", theme.foreground));
-  process.stdout.write(osc("11", theme.background));
-  process.stdout.write(osc("12", theme.cursor));
-  theme.palette.slice(0, 16).forEach((color, index) => {
-    process.stdout.write(osc(`4;${index}`, color));
-  });
+  const paletteOsc = theme.palette.slice(0, 16).map((color, index) => osc(`4;${index}`, color)).join("");
+  process.stdout.write(`${osc("10", theme.foreground)}${osc("11", theme.background)}${osc("12", theme.cursor)}${paletteOsc}`);
 }
 
 function restoreTerminalTheme(): void {
-  process.stdout.write("\x1b]104\x07");
-  process.stdout.write("\x1b]110\x07");
-  process.stdout.write("\x1b]111\x07");
-  process.stdout.write("\x1b]112\x07");
+  process.stdout.write("\x1b]104\x07\x1b]110\x07\x1b]111\x07\x1b]112\x07");
 }
 
 function cleanupTerminal(): void {
@@ -635,6 +643,11 @@ function cleanupTerminal(): void {
   terminalCleanedUp = true;
   restoreTerminalTheme();
   leaveAlternateScreen();
+}
+
+function setPreviewThemeInstance(theme: Theme): void {
+  const themeKey = Symbol.for("@mariozechner/pi-coding-agent:theme");
+  Reflect.set(globalThis, themeKey, theme);
 }
 
 function rgbToHex(r: number, g: number, b: number): string {
@@ -753,6 +766,45 @@ function loadOriginalTerminalTheme(sourcePath: string): OriginalTerminalTheme {
   return { foreground, background, cursor, palette };
 }
 
+type ThemeJson = {
+  name?: string;
+  vars?: Record<string, string>;
+  colors?: Record<string, string>;
+  export?: { pageBg?: string };
+};
+
+function createPreviewThemeFromJson(path: string, data: ThemeJson): Theme {
+  const varsMap = data.vars ?? {};
+  const colorsMap = data.colors ?? {};
+  const bgColorKeys = new Set([
+    "selectedBg",
+    "userMessageBg",
+    "customMessageBg",
+    "toolPendingBg",
+    "toolSuccessBg",
+    "toolErrorBg",
+  ]);
+  const fgColors: Record<string, string> = {};
+  const bgColors: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(colorsMap)) {
+    const resolved = value === "" ? varsMap.fg : varsMap[value];
+    if (!resolved) {
+      continue;
+    }
+    if (bgColorKeys.has(key)) {
+      bgColors[key] = resolved;
+      continue;
+    }
+    fgColors[key] = resolved;
+  }
+
+  return new Theme(fgColors, bgColors, "truecolor", {
+    name: data.name,
+    sourcePath: path,
+  });
+}
+
 async function loadThemes(): Promise<ThemeRecord[]> {
   const glob = new Bun.Glob("themes/*.json");
   const themes: ThemeRecord[] = [];
@@ -761,16 +813,13 @@ async function loadThemes(): Promise<ThemeRecord[]> {
 
   for await (const relativePath of glob.scan({ cwd: REPO_ROOT, absolute: false })) {
     const path = `${REPO_ROOT}/${relativePath}`;
-    const data = (await Bun.file(path).json()) as {
-      name?: string;
-      vars?: { bg?: string; fg?: string; accent?: string };
-      export?: { pageBg?: string; cardBg?: string; infoBg?: string };
-    };
+    const data = (await Bun.file(path).json()) as ThemeJson;
     const name = data.name ?? relativeThemePath(path).replace(/^themes\//, "").replace(/\.json$/, "");
     const sourceName = curatedSourceMap.get(name) ?? name;
     const sourcePath = `${UPSTREAM_SCHEMES_DIR}/${sourceName}.itermcolors`;
     const background = data.export?.pageBg ?? data.vars?.bg ?? "#000000";
     const pageBg = data.export?.pageBg ?? data.vars?.bg ?? "#000000";
+
     themes.push({
       name,
       path,
@@ -780,6 +829,7 @@ async function loadThemes(): Promise<ThemeRecord[]> {
       pageBg,
       isDark: relativeLuminance(background) < 0.35,
       originalTerminalTheme: loadOriginalTerminalTheme(sourcePath),
+      previewTheme: createPreviewThemeFromJson(path, data),
     });
   }
 
