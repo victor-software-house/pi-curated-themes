@@ -112,19 +112,6 @@ def ensure_contrast(fg: str, bg: str, min_diff: int = 45) -> str:
     return lighten(fg, needed) if bl < 128 else darken(fg, needed)
 
 
-def cap_contrast(fg: str, bg: str, max_diff: int = 190) -> str:
-    """Soften a color if it's too bright/harsh against the background."""
-    fl, bl = luminance(fg), luminance(bg)
-    diff = abs(fl - bl)
-    if diff <= max_diff:
-        return fg
-    # Mix toward background to reduce contrast while preserving hue
-    overshoot = diff - max_diff
-    # Ratio: how much to pull toward bg. Each step of mix reduces contrast.
-    ratio = min(overshoot / diff, 0.4)  # never pull more than 40% toward bg
-    return mix(bg, fg, ratio)
-
-
 # ──────────────────────────────────────────────────────────────────────────────
 # P3 -> sRGB conversion (matches upstream gen.py)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -469,8 +456,128 @@ def generate_theme(name: str, g: dict) -> dict:
 # Validation
 # ──────────────────────────────────────────────────────────────────────────────
 
-GRAY_CONTRAST_HARD = 35
-GRAY_CONTRAST_WARN = 42
+SEMANTIC_HUE_MIN = 25
+BASE_NEUTRAL_CONTRAST_HARD = 35
+BASE_NEUTRAL_CONTRAST_WARN = 42
+PANEL_NEUTRAL_CONTRAST_HARD = 28
+PANEL_NEUTRAL_CONTRAST_WARN = 35
+TINTED_PANEL_NEUTRAL_CONTRAST_HARD = 18
+TINTED_PANEL_NEUTRAL_CONTRAST_WARN = 30
+TEXT_ON_PANEL_CONTRAST_HARD = 45
+TEXT_ON_PANEL_CONTRAST_WARN = 60
+
+
+VALIDATION_PAIRS = [
+    {
+        "id": "base-muted",
+        "fg": "muted",
+        "bg": "bg",
+        "hard": BASE_NEUTRAL_CONTRAST_HARD,
+        "warn": BASE_NEUTRAL_CONTRAST_WARN,
+    },
+    {
+        "id": "thinking-text",
+        "fg": "thinkingText",
+        "bg": "bg",
+        "hard": BASE_NEUTRAL_CONTRAST_HARD,
+        "warn": BASE_NEUTRAL_CONTRAST_WARN,
+    },
+    {
+        "id": "md-link-url-on-base",
+        "fg": "mdLinkUrl",
+        "bg": "bg",
+        "hard": BASE_NEUTRAL_CONTRAST_HARD,
+        "warn": BASE_NEUTRAL_CONTRAST_WARN,
+    },
+    {
+        "id": "md-quote-on-base",
+        "fg": "mdQuote",
+        "bg": "bg",
+        "hard": BASE_NEUTRAL_CONTRAST_HARD,
+        "warn": BASE_NEUTRAL_CONTRAST_WARN,
+    },
+    {
+        "id": "user-message-text",
+        "fg": "userMessageText",
+        "bg": "userMessageBg",
+        "hard": TEXT_ON_PANEL_CONTRAST_HARD,
+        "warn": TEXT_ON_PANEL_CONTRAST_WARN,
+    },
+    {
+        "id": "custom-message-text",
+        "fg": "customMessageText",
+        "bg": "customMessageBg",
+        "hard": TEXT_ON_PANEL_CONTRAST_HARD,
+        "warn": TEXT_ON_PANEL_CONTRAST_WARN,
+    },
+    {
+        "id": "tool-output-pending",
+        "fg": "toolOutput",
+        "bg": "toolPendingBg",
+        "hard": TEXT_ON_PANEL_CONTRAST_HARD,
+        "warn": TEXT_ON_PANEL_CONTRAST_WARN,
+    },
+    {
+        "id": "tool-output-success",
+        "fg": "toolOutput",
+        "bg": "toolSuccessBg",
+        "hard": TEXT_ON_PANEL_CONTRAST_HARD,
+        "warn": TEXT_ON_PANEL_CONTRAST_WARN,
+    },
+    {
+        "id": "tool-output-error",
+        "fg": "toolOutput",
+        "bg": "toolErrorBg",
+        "hard": TEXT_ON_PANEL_CONTRAST_HARD,
+        "warn": TEXT_ON_PANEL_CONTRAST_WARN,
+    },
+    {
+        "id": "tool-diff-context-pending",
+        "fg": "toolDiffContext",
+        "bg": "toolPendingBg",
+        "hard": PANEL_NEUTRAL_CONTRAST_HARD,
+        "warn": PANEL_NEUTRAL_CONTRAST_WARN,
+    },
+    {
+        "id": "tool-diff-context-success",
+        "fg": "toolDiffContext",
+        "bg": "toolSuccessBg",
+        "hard": TINTED_PANEL_NEUTRAL_CONTRAST_HARD,
+        "warn": TINTED_PANEL_NEUTRAL_CONTRAST_WARN,
+    },
+    {
+        "id": "tool-diff-context-error",
+        "fg": "toolDiffContext",
+        "bg": "toolErrorBg",
+        "hard": TINTED_PANEL_NEUTRAL_CONTRAST_HARD,
+        "warn": TINTED_PANEL_NEUTRAL_CONTRAST_WARN,
+    },
+]
+
+
+def resolve_color(theme: dict, token: str) -> str | None:
+    vars_map = theme.get("vars", {})
+    colors_map = theme.get("colors", {})
+    if token in vars_map:
+        return vars_map.get(token)
+    if token == "bg":
+        return vars_map.get("bg")
+    color_ref = colors_map.get(token)
+    if color_ref == "":
+        return vars_map.get("fg")
+    if isinstance(color_ref, str):
+        return vars_map.get(color_ref)
+    return None
+
+
+def validate_surface_pair(theme: dict, pair: dict) -> tuple[str, float] | None:
+    fg_value = resolve_color(theme, pair["fg"])
+    bg_value = resolve_color(theme, pair["bg"])
+    if not fg_value or not bg_value:
+        return None
+    contrast = abs(luminance(fg_value) - luminance(bg_value))
+    return f"{pair['fg']} on {pair['bg']}", contrast
+
 
 
 def validate_themes() -> bool:
@@ -480,36 +587,42 @@ def validate_themes() -> bool:
     for f in sorted(theme_dir.iterdir()):
         if not f.name.endswith("-semantic.json"):
             continue
-        t = json.loads(f.read_text())
-        v = t.get("vars", {})
-        name = t.get("name", f.name)
-        s, e, w = v.get("success", ""), v.get("error", ""), v.get("warning", "")
-        bg_v = v.get("bg", "#000000")
-        acc = v.get("accent", "")
-        gray_v = v.get("gray", "")
+        theme = json.loads(f.read_text())
+        vars_map = theme.get("vars", {})
+        name = theme.get("name", f.name)
+        success_color = vars_map.get("success", "")
+        error_color = vars_map.get("error", "")
+        warning_color = vars_map.get("warning", "")
+        accent = vars_map.get("accent", "")
 
         err_list: list[str] = []
         warn_list: list[str] = []
 
-        # Hue distinctness (hard)
-        if s and e and hue_distance(s, e) < 25:
-            err_list.append(f"success-error hue={hue_distance(s, e):.0f}deg (<25)")
-        if s and w and hue_distance(s, w) < 25:
-            err_list.append(f"success-warning hue={hue_distance(s, w):.0f}deg (<25)")
-        if e and w and hue_distance(e, w) < 25:
-            err_list.append(f"error-warning hue={hue_distance(e, w):.0f}deg (<25)")
+        if success_color and error_color and hue_distance(success_color, error_color) < SEMANTIC_HUE_MIN:
+            err_list.append(
+                f"success-error hue={hue_distance(success_color, error_color):.0f}deg (<{SEMANTIC_HUE_MIN})"
+            )
+        if success_color and warning_color and hue_distance(success_color, warning_color) < SEMANTIC_HUE_MIN:
+            err_list.append(
+                f"success-warning hue={hue_distance(success_color, warning_color):.0f}deg (<{SEMANTIC_HUE_MIN})"
+            )
+        if error_color and warning_color and hue_distance(error_color, warning_color) < SEMANTIC_HUE_MIN:
+            err_list.append(
+                f"error-warning hue={hue_distance(error_color, warning_color):.0f}deg (<{SEMANTIC_HUE_MIN})"
+            )
 
-        # Accent-error collision (hard)
-        if acc and e and acc == e:
+        if accent and error_color and accent == error_color:
             err_list.append("accent identical to error")
 
-        # Gray/dim contrast
-        if gray_v and bg_v:
-            contrast = abs(luminance(gray_v) - luminance(bg_v))
-            if contrast < GRAY_CONTRAST_HARD:
-                err_list.append(f"dim/gray contrast {contrast:.0f} (<{GRAY_CONTRAST_HARD})")
-            elif contrast < GRAY_CONTRAST_WARN:
-                warn_list.append(f"dim/gray contrast {contrast:.0f} (<{GRAY_CONTRAST_WARN})")
+        for pair in VALIDATION_PAIRS:
+            result = validate_surface_pair(theme, pair)
+            if result is None:
+                continue
+            pair_label, contrast = result
+            if contrast < pair["hard"]:
+                err_list.append(f"{pair_label} contrast {contrast:.0f} (<{pair['hard']})")
+            elif contrast < pair["warn"]:
+                warn_list.append(f"{pair_label} contrast {contrast:.0f} (<{pair['warn']})")
 
         if err_list:
             errors.append((name, err_list))
