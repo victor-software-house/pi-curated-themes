@@ -22,6 +22,16 @@
     "README.md",
     "LICENSE"
   ],
+  "scripts": {
+    "check": "jq empty themes/*.json && mise run themes:validate",
+    "commitlint": "commitlint",
+    "prepare": "lefthook install",
+    "release": "semantic-release",
+    "release:dry-run": "semantic-release --dry-run"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "pi": {
     "themes": [
       "./themes"
@@ -29,5 +39,17 @@
     "skills": [
       "./skills"
     ]
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.4.4",
+    "@commitlint/config-conventional": "^20.4.4",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.6",
+    "@semantic-release/npm": "^13.1.5",
+    "@semantic-release/release-notes-generator": "^14.1.0",
+    "lefthook": "^2.1.4",
+    "semantic-release": "^25.0.3"
   }
 }

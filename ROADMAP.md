@@ -51,6 +51,19 @@ Implemented:
 - Generation no longer depends on an external validation policy file
 - Validation currently guards only against structurally bad outputs such as obvious semantic collisions
 
+### Release automation
+
+Implemented:
+
+- `semantic-release` is the release automation model
+- GitHub Actions publish uses npm trusted publishing with OIDC instead of `NPM_TOKEN`
+- Conventional Commits are enforced locally with Lefthook + commitlint and again in CI
+
+Outstanding bootstrap requirement:
+
+- The package still needs its first manual npm publish before trusted publishing can be activated for later automated releases
+- After that bootstrap publish, push the matching historical git tag before relying on `semantic-release`
+
 ### Preview TUI
 
 Implemented in `scripts/list-themes-tui.ts`:
@@ -83,6 +96,14 @@ Implemented in `scripts/list-themes-tui.ts`:
 - `mise.toml`
 - `mise.lock`
 - `mise-tasks/preview`
+
+### Release files
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/publish.yml`
+- `.releaserc.json`
+- `commitlint.config.cjs`
+- `lefthook.yml`
 
 ## What was already decided
 

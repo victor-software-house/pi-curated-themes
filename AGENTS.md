@@ -51,12 +51,20 @@ When editing themes:
 
 ## Release policy
 
-This repository uses `release-please` for release automation.
+This repository uses `semantic-release` plus npm trusted publishing for release automation.
 
 Release flow:
-1. Merge changes to `main`.
-2. `release-please` opens or updates a release PR.
-3. Merge the release PR to create the git tag and GitHub release.
+1. Write Conventional Commits.
+2. Local `commit-msg` validation runs through Lefthook + commitlint.
+3. CI validates commit messages and repository checks.
+4. Merge changes to `main`.
+5. The publish workflow runs `semantic-release`.
+6. `semantic-release` creates the git tag, GitHub release, and npm publish.
+
+Bootstrap rule:
+- Because npm trusted publishing only works after the package already exists on npm, the first publish must be completed manually by the operator.
+- After that first publish, push the matching historical tag before enabling automated releases so `semantic-release` sees the existing published version.
+- Then configure npm trusted publishing for `.github/workflows/publish.yml` and stop using npm tokens.
 
 ## Commit message policy
 

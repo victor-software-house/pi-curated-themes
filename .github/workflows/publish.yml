@@ -1,0 +1,67 @@
+name: Publish
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          registry-url: https://registry.npmjs.org
+
+      - name: Setup mise
+        uses: jdx/mise-action@v2
+
+      - name: Install dependencies
+        run: npm clean-install
+
+      - name: Determine commit range
+        id: commit-range
+        run: |
+          FROM="${{ github.event.before }}"
+          TO="${{ github.sha }}"
+          if [ "$FROM" = "0000000000000000000000000000000000000000" ]; then
+            FROM="$(git rev-list --max-parents=0 "$TO")"
+          fi
+
+          echo "from=$FROM" >> "$GITHUB_OUTPUT"
+          echo "to=$TO" >> "$GITHUB_OUTPUT"
+
+      - name: Lint commit messages
+        run: |
+          npx commitlint \
+            --from "${{ steps.commit-range.outputs.from }}" \
+            --to "${{ steps.commit-range.outputs.to }}" \
+            --verbose
+
+      - name: Run repository checks
+        run: npm run check
+
+      - name: Verify publish contents
+        run: npm pack --dry-run
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+        run: npx semantic-release

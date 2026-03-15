@@ -1,9 +1,0 @@
-{
-  "packages": {
-    ".": {
-      "release-type": "node",
-      "include-v-in-tag": true,
-      "package-name": "@victor-software-house/pi-curated-themes"
-    }
-  }
-}

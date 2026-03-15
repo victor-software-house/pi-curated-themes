@@ -57,7 +57,7 @@ When a palette lacks a needed hue, the missing color is derived by mixing a cano
 # From GitHub
 pi install git:github.com/victor-software-house/pi-curated-themes
 
-# From npm (after publishing)
+# From npm
 pi install npm:@victor-software-house/pi-curated-themes
 ```
 
@@ -133,11 +133,46 @@ Color palettes originate from [mbadolato/iTerm2-Color-Schemes](https://github.co
 
 ## Release process
 
-Uses `release-please` with Conventional Commits:
+This repository uses `semantic-release` with npm trusted publishing.
+
+Release model:
 
 - `fix:` -> patch (visual tuning)
 - `feat:` -> minor (new themes)
 - `feat!:` -> major (renames, removals)
+- `docs:` and `chore:` -> no release unless they include a breaking change
+
+Release automation:
+
+1. Lefthook runs `commitlint` on `commit-msg` locally.
+2. GitHub Actions runs commitlint and repository checks in CI.
+3. Merging to `main` runs `.github/workflows/publish.yml`.
+4. `semantic-release` determines the next version from commit history.
+5. GitHub release creation and `npm publish --provenance --access public` run from GitHub Actions OIDC.
+
+Required one-time bootstrap before trusted publishing works:
+
+1. Publish `@victor-software-house/pi-curated-themes` once from a maintainer machine with normal npm authentication.
+2. Push the matching historical release tag so `semantic-release` sees the existing published version:
+
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+3. Register the trusted publisher for this repository and workflow:
+
+   ```bash
+   script -q /dev/null bash -lc 'npm trust github @victor-software-house/pi-curated-themes --repository victor-software-house/pi-curated-themes --file publish.yml --yes'
+   ```
+
+4. Confirm the trust relationship:
+
+   ```bash
+   npm trust list @victor-software-house/pi-curated-themes
+   ```
+
+After bootstrap, do not use `NPM_TOKEN` for GitHub Actions publishing.
 
 ## License
 
