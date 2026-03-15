@@ -20,7 +20,8 @@
     "error": "#e72424",
     "warning": "#e6c283",
     "diffAdded": "#acc282",
-    "diffRemoved": "#e72424"
+    "diffRemoved": "#e72424",
+    "diffContext": "#727069"
   },
   "colors": {
     "accent": "accent",
@@ -57,7 +58,7 @@
     "mdListBullet": "accent",
     "toolDiffAdded": "diffAdded",
     "toolDiffRemoved": "diffRemoved",
-    "toolDiffContext": "gray",
+    "toolDiffContext": "diffContext",
     "syntaxComment": "gray",
     "syntaxKeyword": "accent",
     "syntaxFunction": "secondary",

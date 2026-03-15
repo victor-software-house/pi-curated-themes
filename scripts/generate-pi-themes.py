@@ -112,6 +112,17 @@ def ensure_contrast(fg: str, bg: str, min_diff: int = 45) -> str:
     return lighten(fg, needed) if bl < 128 else darken(fg, needed)
 
 
+def ensure_contrast_across(fg: str, bgs: list[str], min_diff: int) -> str:
+    candidate = fg
+    for _ in range(8):
+        weakest_bg = min(bgs, key=lambda bg: abs(luminance(candidate) - luminance(bg)))
+        weakest = abs(luminance(candidate) - luminance(weakest_bg))
+        if weakest >= min_diff:
+            return candidate
+        candidate = ensure_contrast(candidate, weakest_bg, min_diff)
+    return candidate
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # P3 -> sRGB conversion (matches upstream gen.py)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -361,6 +372,8 @@ def generate_theme(name: str, g: dict) -> dict:
     diff_added = ensure_contrast(diff_added, bg, 45)
     diff_removed = mix(error_color, fg, 0.7) if luminance(error_color) > 150 else error_color
     diff_removed = ensure_contrast(diff_removed, bg, 45)
+    diff_context = ensure_contrast_across(gray, [panel_alt], 35)
+    diff_context = ensure_contrast_across(diff_context, [panel_success, panel_error], 30)
 
     # ── Thinking progression ──
     accent_lum = luminance(accent)
@@ -390,6 +403,7 @@ def generate_theme(name: str, g: dict) -> dict:
             "warning": warning_color,
             "diffAdded": diff_added,
             "diffRemoved": diff_removed,
+            "diffContext": diff_context,
         },
         "colors": {
             "accent": "accent",
@@ -426,7 +440,7 @@ def generate_theme(name: str, g: dict) -> dict:
             "mdListBullet": "accent",
             "toolDiffAdded": "diffAdded",
             "toolDiffRemoved": "diffRemoved",
-            "toolDiffContext": "gray",
+            "toolDiffContext": "diffContext",
             "syntaxComment": "gray",
             "syntaxKeyword": "accent",
             "syntaxFunction": "secondary",
