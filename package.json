@@ -1,6 +1,6 @@
 {
   "name": "@victor-software-house/pi-curated-themes",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Curated dark terminal themes for pi, adapted from iTerm2-Color-Schemes",
   "private": false,
   "keywords": [
