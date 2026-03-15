@@ -267,7 +267,7 @@ class ThemeBrowser implements Component {
 
   private renderPreview(width: number): string[] {
     if (!this.selectedTheme) {
-      return [padVisible(centerText("No theme selected", width), width)];
+      return [padLineBackground(padVisible(centerText("No theme selected", width), width), width, "#000000")];
     }
 
     const cacheKey = `${this.selectedTheme.name}:${width}`;
@@ -291,22 +291,23 @@ class ThemeBrowser implements Component {
       lines.push(...(index === 0 ? trimLeadingEmptyLines(rendered) : rendered));
     }
 
-    const normalized = lines.map((line) => truncateToWidth(line, width));
+    const normalized = lines.map((line) => padLineBackground(truncateToWidth(line, width), width, this.selectedTheme.pageBg));
     this.previewLinesCache.set(cacheKey, normalized);
     return normalized;
   }
 
   private renderThemeList(width: number, rows: number): string[] {
     const theme = this.getChromeTheme();
+    const pageBg = this.selectedTheme?.pageBg ?? this.filteredThemes[0]?.pageBg ?? "#000000";
     const visibleThemes = this.filteredThemes.slice(this.listScrollOffset, this.listScrollOffset + rows);
     const lines = visibleThemes.map((entry, rowIndex) => {
       const index = this.listScrollOffset + rowIndex;
       const isSelected = index === this.selectedIndex;
       const isHovered = index === this.hoveredListIndex;
-      return renderThemeListRow(entry.name, width, theme, isSelected, isHovered);
+      return renderThemeListRow(entry.name, width, theme, pageBg, isSelected, isHovered);
     });
 
-    return padToRows(lines, rows, padVisible("", width));
+    return padToRows(lines, rows, padLineBackground("", width, pageBg));
   }
 
   private renderFooter(width: number): string {
@@ -316,7 +317,10 @@ class ThemeBrowser implements Component {
       : this.helpMode
         ? "esc close"
         : "j/k move  pgup/pgdn jump  / search  f filter  ? help  q quit";
-    return padVisible(truncateToWidth(`${search}  ${help}`, width), width);
+    const pageBg = this.selectedTheme?.pageBg ?? this.filteredThemes[0]?.pageBg ?? "#000000";
+    const chromeTheme = this.getChromeTheme();
+    const footerText = chromeTheme.fg("muted", truncateToWidth(`${search}  ${help}`, width));
+    return padLineBackground(footerText, width, pageBg);
   }
 
   private moveSelection(delta: number): void {
@@ -600,7 +604,7 @@ function overlayLines(baseLines: string[], overlayLinesInput: string[]): string[
   return result;
 }
 
-function renderThemeListRow(name: string, width: number, theme: Theme, isSelected: boolean, isHovered: boolean): string {
+function renderThemeListRow(name: string, width: number, theme: Theme, pageBg: string, isSelected: boolean, isHovered: boolean): string {
   const innerWidth = Math.max(0, width - 4);
   const label = truncateToWidth(name, innerWidth);
   if (isSelected) {
@@ -610,10 +614,9 @@ function renderThemeListRow(name: string, width: number, theme: Theme, isSelecte
     return `${theme.getBgAnsi("selectedBg")}${theme.getFgAnsi("accent")}${left}${label}${" ".repeat(padding)}${right}\x1b[39m\x1b[49m`;
   }
 
-  const prefix = isHovered ? theme.fg("accent", "• ") : "  ";
-  const content = `${prefix}${label}`;
-  const padded = padVisible(content, width);
-  return isHovered ? theme.fg("accent", padded) : theme.fg("muted", padded);
+  const prefix = isHovered ? "• " : "  ";
+  const text = isHovered ? theme.fg("accent", `${prefix}${label}`) : theme.fg("muted", `${prefix}${label}`);
+  return padLineBackground(text, width, pageBg);
 }
 
 function buildBoxOverlay(title: string, body: string[], width: number, maxWidth: number, theme: Theme): string[] {
@@ -723,6 +726,12 @@ function relativeThemePath(path: string): string {
 function bgLine(hex: string, width: number): string {
   const [r, g, b] = hexToRgb(hex);
   return `\x1b[48;2;${r};${g};${b}m${" ".repeat(width)}\x1b[49m`;
+}
+
+function padLineBackground(line: string, width: number, hex: string): string {
+  const padded = padVisible(line, width);
+  const [r, g, b] = hexToRgb(hex);
+  return `\x1b[48;2;${r};${g};${b}m${padded}\x1b[49m`;
 }
 
 function enterAlternateScreen(): void {
