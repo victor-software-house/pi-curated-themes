@@ -396,7 +396,7 @@ class ThemeBrowser implements Component {
       this.previewComponents = buildPreviewComponents(this.tui, this.previewWidth);
     }
     this.invalidate();
-    this.tui.requestRender();
+    forceImmediateRender(this.tui);
   }
 
   private getPreviewFiller(width: number): string {
@@ -648,6 +648,25 @@ function cleanupTerminal(): void {
 function setPreviewThemeInstance(theme: Theme): void {
   const themeKey = Symbol.for("@mariozechner/pi-coding-agent:theme");
   Reflect.set(globalThis, themeKey, theme);
+}
+
+function forceImmediateRender(tui: TUI): void {
+  Reflect.set(tui as object, "previousLines", []);
+  Reflect.set(tui as object, "previousWidth", -1);
+  Reflect.set(tui as object, "previousHeight", -1);
+  Reflect.set(tui as object, "cursorRow", 0);
+  Reflect.set(tui as object, "hardwareCursorRow", 0);
+  Reflect.set(tui as object, "maxLinesRendered", 0);
+  Reflect.set(tui as object, "previousViewportTop", 0);
+  Reflect.set(tui as object, "renderRequested", false);
+
+  const doRender = Reflect.get(tui as object, "doRender");
+  if (typeof doRender === "function") {
+    Reflect.apply(doRender, tui, []);
+    return;
+  }
+
+  tui.requestRender(true);
 }
 
 function rgbToHex(r: number, g: number, b: number): string {
