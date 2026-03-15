@@ -152,11 +152,11 @@ When resuming in a new session, follow this order:
    - `ROADMAP.md`
 2. Confirm current validation state:
    - `jq empty themes/*.json`
-   - `./scripts/generate-pi-themes.py --validate`
+   - `mise run validate-themes`
 3. If working on preview fidelity:
    - `mise run preview`
 4. If working on generator behavior:
-   - regenerate with `./scripts/generate-pi-themes.py`
+   - regenerate with `mise run generate-themes`
    - revalidate immediately
 5. Commit and push often
 

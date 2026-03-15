@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE description="Generate curated pi themes from upstream iTerm2 color schemes using the standalone uv-based generator script."
+#MISE quiet=true
+#USAGE arg "[name]" help="Optional theme name to generate"
+set -euo pipefail
+
+if [[ -n "${usage_name:-}" ]]; then
+  ./scripts/generate-pi-themes.py --name "${usage_name}"
+else
+  ./scripts/generate-pi-themes.py
+fi

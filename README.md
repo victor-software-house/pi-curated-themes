@@ -108,13 +108,13 @@ The preview currently uses a TypeScript example snippet so syntax highlighting m
 bash scripts/fetch-upstream.sh
 
 # 2. Generate all curated themes
-./scripts/generate-pi-themes.py
+mise run generate-themes
 
 # 3. Generate a single theme
-./scripts/generate-pi-themes.py --name "Catppuccin Mocha"
+mise run generate-themes -- "Catppuccin Mocha"
 
 # 4. Validate without regenerating
-./scripts/generate-pi-themes.py --validate
+mise run validate-themes
 ```
 
 ## Validation

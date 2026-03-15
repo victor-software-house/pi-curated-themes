@@ -85,5 +85,5 @@ Before committing:
 
 ```bash
 jq empty themes/*.json
-./scripts/generate-pi-themes.py --validate
+mise run validate-themes
 ```

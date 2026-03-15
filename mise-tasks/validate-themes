@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Validate generated pi theme JSON files with the standalone uv-based generator script."
+#MISE quiet=true
+set -euo pipefail
+
+./scripts/generate-pi-themes.py --validate
