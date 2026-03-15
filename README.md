@@ -85,7 +85,7 @@ Pinned tools:
 
 - `node = "lts"`
 - `bun = "latest"`
-- `python = "3.12"`
+- `uv = "latest"`
 
 ## Theme preview
 
@@ -108,13 +108,13 @@ The preview currently uses a TypeScript example snippet so syntax highlighting m
 bash scripts/fetch-upstream.sh
 
 # 2. Generate all curated themes
-mise x -- python3 scripts/generate-pi-themes.py
+./scripts/generate-pi-themes.py
 
 # 3. Generate a single theme
-mise x -- python3 scripts/generate-pi-themes.py --name "Catppuccin Mocha"
+./scripts/generate-pi-themes.py --name "Catppuccin Mocha"
 
 # 4. Validate without regenerating
-mise x -- python3 scripts/generate-pi-themes.py --validate
+./scripts/generate-pi-themes.py --validate
 ```
 
 ## Validation

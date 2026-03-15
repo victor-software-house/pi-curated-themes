@@ -41,6 +41,7 @@ Implemented in `scripts/generate-pi-themes.py`:
 - Display P3 to sRGB conversion
 - Semantic derivation for pi token model
 - Dedicated `diffContext` derivation for tool diff context on tool surfaces
+- Standalone `uv` script execution without a project-level Python runtime requirement in `mise`
 
 ### Validation
 
@@ -115,12 +116,9 @@ The preview is usable, but it is still not fully aligned with Ghostty.
 
 Remaining improvements:
 
-- Replace the current `SelectList`-based left pane with a custom renderer closer to Ghostty’s list style.
-- Add mouse wheel support.
-- Add click selection support.
-- Improve the help overlay styling to better match Ghostty’s modal layout.
-- Consider a custom search overlay closer to Ghostty rather than only footer-driven search state.
 - Reduce remaining spacing mismatches in the preview pane where pi component layout differs from Ghostty’s preview structure.
+- Refine row styling and scroll affordances in the left pane.
+- Polish help and search overlays further if a later pass needs closer Ghostty parity.
 
 ### 2. Continue tuning visually sensitive themes
 
@@ -154,11 +152,11 @@ When resuming in a new session, follow this order:
    - `ROADMAP.md`
 2. Confirm current validation state:
    - `jq empty themes/*.json`
-   - `mise x -- python3 scripts/generate-pi-themes.py --validate`
+   - `./scripts/generate-pi-themes.py --validate`
 3. If working on preview fidelity:
    - `mise run preview`
 4. If working on generator behavior:
-   - regenerate with `mise x -- python3 scripts/generate-pi-themes.py`
+   - regenerate with `./scripts/generate-pi-themes.py`
    - revalidate immediately
 5. Commit and push often
 
@@ -176,13 +174,13 @@ mise run preview -- all
 
 ```bash
 jq empty themes/*.json
-mise x -- python3 scripts/generate-pi-themes.py --validate
+./scripts/generate-pi-themes.py --validate
 ```
 
 ### Regenerate themes
 
 ```bash
-mise x -- python3 scripts/generate-pi-themes.py
+./scripts/generate-pi-themes.py
 ```
 
 ### Fetch upstream
@@ -197,9 +195,9 @@ bash scripts/fetch-upstream.sh
 
 Do not reintroduce `-semantic` to default theme names.
 
-### Preview terminal overrides are intentional
+### Preview is self-contained
 
-The preview temporarily changes terminal foreground/background/cursor and ANSI palette using the original upstream terminal theme. That behavior is expected and should be preserved unless a better source-grounded method replaces it.
+The preview no longer mutates the host terminal palette during theme switching. Keep preview rendering self-contained inside the TUI unless a future task explicitly requires a different approach.
 
 ### Keep committed files human-facing
 

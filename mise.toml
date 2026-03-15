@@ -3,4 +3,4 @@ min_version = "2025.1.0"
 [tools]
 node = "lts"
 bun = "latest"
-python = "3.12"
+uv = "latest"

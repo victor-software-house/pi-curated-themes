@@ -1,13 +1,17 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = []
+# ///
 """Generate pi themes from iTerm2 .itermcolors files.
 
 Reads the curated list from curated.toml, parses .itermcolors XML plists,
 derives pi theme vars, stamps the static colors template, and writes JSON.
 
 Usage:
-    python3 scripts/generate-pi-themes.py                  # generate all
-    python3 scripts/generate-pi-themes.py --name "Gruvbox Dark"  # generate one
-    python3 scripts/generate-pi-themes.py --validate        # check only
+    ./scripts/generate-pi-themes.py                  # generate all
+    ./scripts/generate-pi-themes.py --name "Gruvbox Dark"  # generate one
+    ./scripts/generate-pi-themes.py --validate        # check only
 """
 from __future__ import annotations
 
@@ -20,11 +24,7 @@ import pathlib
 import plistlib
 import re
 import sys
-
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib  # Python < 3.11
+import tomllib
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 CURATED_PATH = REPO_ROOT / "curated.toml"
