@@ -108,13 +108,13 @@ The preview currently uses a TypeScript example snippet so syntax highlighting m
 bash scripts/fetch-upstream.sh
 
 # 2. Generate all curated themes
-mise run generate-themes
+mise run themes:generate
 
 # 3. Generate a single theme
-mise run generate-themes -- "Catppuccin Mocha"
+mise run themes:generate -- --name "Catppuccin Mocha"
 
 # 4. Validate without regenerating
-mise run validate-themes
+mise run themes:validate
 ```
 
 ## Validation

@@ -152,11 +152,11 @@ When resuming in a new session, follow this order:
    - `ROADMAP.md`
 2. Confirm current validation state:
    - `jq empty themes/*.json`
-   - `mise run validate-themes`
+   - `mise run themes:validate`
 3. If working on preview fidelity:
    - `mise run preview`
 4. If working on generator behavior:
-   - regenerate with `mise run generate-themes`
+   - regenerate with `mise run themes:generate`
    - revalidate immediately
 5. Commit and push often
 

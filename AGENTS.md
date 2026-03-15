@@ -85,5 +85,5 @@ Before committing:
 
 ```bash
 jq empty themes/*.json
-mise run validate-themes
+mise run themes:validate
 ```
