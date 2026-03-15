@@ -1,6 +1,5 @@
 #!/usr/bin/env -S bun --install=force
 
-import { readFileSync } from "node:fs";
 import "zod/v3";
 
 import {
@@ -28,13 +27,6 @@ import {
 
 type ThemeMode = "dark" | "light" | "all";
 
-type OriginalTerminalTheme = {
-  foreground: string;
-  background: string;
-  cursor: string;
-  palette: string[];
-};
-
 type ThemeRecord = {
   name: string;
   path: string;
@@ -43,7 +35,6 @@ type ThemeRecord = {
   background: string;
   pageBg: string;
   isDark: boolean;
-  originalTerminalTheme: OriginalTerminalTheme;
   previewTheme: Theme;
 };
 
@@ -388,7 +379,6 @@ class ThemeBrowser implements Component {
 
     process.env[AGENT_DIR_ENV] = REPO_ROOT;
     process.env.COLORTERM = process.env.COLORTERM || "truecolor";
-    applyTerminalTheme(theme.originalTerminalTheme);
     setPreviewThemeInstance(theme.previewTheme);
 
     this.selectedTheme = theme;
@@ -396,7 +386,7 @@ class ThemeBrowser implements Component {
       this.previewComponents = buildPreviewComponents(this.tui, this.previewWidth);
     }
     this.invalidate();
-    forceImmediateRender(this.tui);
+    this.tui.requestRender();
   }
 
   private getPreviewFiller(width: number): string {
@@ -615,10 +605,6 @@ function bgLine(hex: string, width: number): string {
   return `\x1b[48;2;${r};${g};${b}m${" ".repeat(width)}\x1b[49m`;
 }
 
-function osc(code: string, value: string): string {
-  return `\x1b]${code};${value}\x07`;
-}
-
 function enterAlternateScreen(): void {
   process.stdout.write("\x1b[?1049h\x1b[2J\x1b[H");
 }
@@ -627,50 +613,17 @@ function leaveAlternateScreen(): void {
   process.stdout.write("\x1b[?1049l");
 }
 
-function applyTerminalTheme(theme: OriginalTerminalTheme): void {
-  const paletteOsc = theme.palette.slice(0, 16).map((color, index) => osc(`4;${index}`, color)).join("");
-  process.stdout.write(`${osc("10", theme.foreground)}${osc("11", theme.background)}${osc("12", theme.cursor)}${paletteOsc}`);
-}
-
-function restoreTerminalTheme(): void {
-  process.stdout.write("\x1b]104\x07\x1b]110\x07\x1b]111\x07\x1b]112\x07");
-}
-
 function cleanupTerminal(): void {
   if (terminalCleanedUp) {
     return;
   }
   terminalCleanedUp = true;
-  restoreTerminalTheme();
   leaveAlternateScreen();
 }
 
 function setPreviewThemeInstance(theme: Theme): void {
   const themeKey = Symbol.for("@mariozechner/pi-coding-agent:theme");
   Reflect.set(globalThis, themeKey, theme);
-}
-
-function forceImmediateRender(tui: TUI): void {
-  Reflect.set(tui as object, "previousLines", []);
-  Reflect.set(tui as object, "previousWidth", -1);
-  Reflect.set(tui as object, "previousHeight", -1);
-  Reflect.set(tui as object, "cursorRow", 0);
-  Reflect.set(tui as object, "hardwareCursorRow", 0);
-  Reflect.set(tui as object, "maxLinesRendered", 0);
-  Reflect.set(tui as object, "previousViewportTop", 0);
-  Reflect.set(tui as object, "renderRequested", false);
-
-  const doRender = Reflect.get(tui as object, "doRender");
-  if (typeof doRender === "function") {
-    Reflect.apply(doRender, tui, []);
-    return;
-  }
-
-  tui.requestRender(true);
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  return `#${Math.max(0, Math.min(255, Math.round(r))).toString(16).padStart(2, "0")}${Math.max(0, Math.min(255, Math.round(g))).toString(16).padStart(2, "0")}${Math.max(0, Math.min(255, Math.round(b))).toString(16).padStart(2, "0")}`;
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -722,67 +675,6 @@ function buildCuratedSourceMap(content: string): Map<string, string> {
     map.set(slugify(sourceName), sourceName);
   }
   return map;
-}
-
-function srgbToLinear(value: number): number {
-  return value < 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-}
-
-function linearToSrgb(value: number): number {
-  return value < 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055;
-}
-
-function p3ToSrgb(r: number, g: number, b: number): [number, number, number] {
-  const rl = srgbToLinear(r);
-  const gl = srgbToLinear(g);
-  const bl = srgbToLinear(b);
-  const x = 0.4865709486 * rl + 0.2656676932 * gl + 0.1982172852 * bl;
-  const y = 0.2289745641 * rl + 0.6917385218 * gl + 0.0792869141 * bl;
-  const z = 0.0451133819 * gl + 1.0439443689 * bl;
-  const sr = 3.2404541621 * x - 1.537138594 * y - 0.4985314096 * z;
-  const sg = -0.9692660305 * x + 1.8760108454 * y + 0.0415560175 * z;
-  const sb = 0.0556434309 * x - 0.2040259135 * y + 1.0572251882 * z;
-  return [
-    Math.max(0, Math.min(1, linearToSrgb(sr))),
-    Math.max(0, Math.min(1, linearToSrgb(sg))),
-    Math.max(0, Math.min(1, linearToSrgb(sb))),
-  ];
-}
-
-function plistColorToHex(block: string): string {
-  const readComponent = (name: string): number => {
-    const match = block.match(new RegExp(`<key>${name}</key>\\s*<real>([^<]+)</real>`));
-    return match ? Number.parseFloat(match[1]) : 0;
-  };
-  const colorSpaceMatch = block.match(/<key>Color Space<\/key>\s*<string>([^<]+)<\/string>/);
-  let r = readComponent("Red Component");
-  let g = readComponent("Green Component");
-  let b = readComponent("Blue Component");
-  if (colorSpaceMatch?.[1] === "P3") {
-    [r, g, b] = p3ToSrgb(r, g, b);
-  }
-  return rgbToHex(r * 255, g * 255, b * 255);
-}
-
-function extractPlistColor(content: string, key: string, fallback: string): string {
-  const pattern = new RegExp(`<key>${escapeRegExp(key)}</key>\\s*<dict>([\\s\\S]*?)<\\/dict>`);
-  const match = content.match(pattern);
-  return match ? plistColorToHex(match[1]) : fallback;
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function loadOriginalTerminalTheme(sourcePath: string): OriginalTerminalTheme {
-  const content = readFileSync(sourcePath, "utf8");
-  const palette = Array.from({ length: 16 }, (_, index) =>
-    extractPlistColor(content, `Ansi ${index} Color`, index === 0 ? "#000000" : "#ffffff"),
-  );
-  const foreground = extractPlistColor(content, "Foreground Color", "#ffffff");
-  const background = extractPlistColor(content, "Background Color", "#000000");
-  const cursor = extractPlistColor(content, "Cursor Color", foreground);
-  return { foreground, background, cursor, palette };
 }
 
 type ThemeJson = {
@@ -847,7 +739,6 @@ async function loadThemes(): Promise<ThemeRecord[]> {
       background,
       pageBg,
       isDark: relativeLuminance(background) < 0.35,
-      originalTerminalTheme: loadOriginalTerminalTheme(sourcePath),
       previewTheme: createPreviewThemeFromJson(path, data),
     });
   }
