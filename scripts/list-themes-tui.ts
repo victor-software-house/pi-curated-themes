@@ -6,12 +6,10 @@ import {
   Key,
   matchesKey,
   ProcessTerminal,
-  SelectList,
   TUI,
   truncateToWidth,
   visibleWidth,
   type Component,
-  type SelectItem,
 } from "@mariozechner/pi-tui";
 import {
   AssistantMessageComponent,
@@ -19,7 +17,6 @@ import {
   CustomMessageComponent,
   DynamicBorder,
   getMarkdownTheme,
-  getSelectListTheme,
   Theme,
   ToolExecutionComponent,
   UserMessageComponent,
@@ -51,36 +48,41 @@ let terminalCleanedUp = false;
 class ThemeBrowser implements Component {
   private readonly tui: TUI;
   private readonly allThemes: ThemeRecord[];
-  private readonly themeByName: Map<string, ThemeRecord>;
   private previewComponents: Component[] = [];
   private readonly previewLinesCache = new Map<string, string[]>();
+  private filteredThemes: ThemeRecord[] = [];
   private mode: ThemeMode;
   private helpMode = false;
   private searchMode = false;
   private searchQuery = "";
-  private items: SelectItem[] = [];
   private listVisibleRows = 18;
-  private list: SelectList;
+  private listScrollOffset = 0;
+  private hoveredListIndex?: number;
+  private selectedIndex = 0;
   private selectedTheme?: ThemeRecord;
   private previewWidth = 72;
+  private lastLeftPaneWidth = 24;
 
   constructor(tui: TUI, themes: ThemeRecord[], mode: ThemeMode) {
     this.tui = tui;
     this.allThemes = themes;
-    this.themeByName = new Map(themes.map((theme) => [theme.name, theme]));
     this.mode = mode;
-    this.list = this.createSelectList([], this.listVisibleRows);
     this.resetItems();
   }
 
   invalidate(): void {
-    this.list.invalidate();
     for (const component of this.previewComponents) {
       component.invalidate?.();
     }
   }
 
   handleInput(data: string): void {
+    const mouseEvent = parseMouseEvent(data);
+    if (mouseEvent) {
+      this.handleMouseInput(mouseEvent);
+      return;
+    }
+
     if (this.helpMode) {
       this.handleHelpInput(data);
       return;
@@ -121,12 +123,12 @@ class ThemeBrowser implements Component {
     }
 
     if (matchesKey(data, "home")) {
-      this.selectListIndex(0);
+      this.selectThemeByIndex(0);
       return;
     }
 
     if (matchesKey(data, "end")) {
-      this.selectListIndex(Math.max(0, this.items.length - 1));
+      this.selectThemeByIndex(Math.max(0, this.filteredThemes.length - 1));
       return;
     }
 
@@ -140,17 +142,15 @@ class ThemeBrowser implements Component {
       return;
     }
 
-    if (data === "j" || data === "+") {
-      this.forwardListInput("\x1b[B");
+    if (matchesKey(data, Key.down) || data === "j" || data === "+") {
+      this.moveSelection(1);
       return;
     }
 
-    if (data === "k" || data === "-") {
-      this.forwardListInput("\x1b[A");
+    if (matchesKey(data, Key.up) || data === "k" || data === "-") {
+      this.moveSelection(-1);
       return;
     }
-
-    this.forwardListInput(data);
   }
 
   render(width: number): string[] {
@@ -160,16 +160,59 @@ class ThemeBrowser implements Component {
     const leftWidth = Math.max(24, Math.min(32, Math.floor(width * 0.26)));
     const rightWidth = Math.max(36, width - leftWidth - visibleWidth(separator));
     this.previewWidth = rightWidth;
-    this.ensureListVisibleRows(bodyRows);
+    this.lastLeftPaneWidth = leftWidth;
+    this.listVisibleRows = bodyRows;
+    this.ensureSelectionVisible();
 
     const leftLines = this.renderThemeList(leftWidth, bodyRows);
     const rightLines = padToRows(this.renderPreview(rightWidth), bodyRows, this.getPreviewFiller(rightWidth));
     let body = joinColumns(leftLines, rightLines, leftWidth, separator, rightWidth);
     if (this.helpMode) {
-      body = overlayLines(body, buildHelpOverlay(width, bodyRows));
+      body = overlayLines(body, buildHelpOverlay(width, bodyRows, this.getChromeTheme()));
+    }
+    if (this.searchMode) {
+      body = overlayLines(body, buildSearchOverlay(width, bodyRows, this.searchQuery, this.getChromeTheme()));
     }
 
     return [...body, this.renderFooter(width)];
+  }
+
+  private handleMouseInput(event: MouseEvent): void {
+    if (this.helpMode || this.searchMode) {
+      return;
+    }
+
+    if (event.col > this.lastLeftPaneWidth) {
+      return;
+    }
+
+    if (event.kind === "wheel-up") {
+      this.moveSelection(-1);
+      return;
+    }
+
+    if (event.kind === "wheel-down") {
+      this.moveSelection(1);
+      return;
+    }
+
+    const rowIndex = event.row - 1;
+    if (rowIndex < 0 || rowIndex >= this.listVisibleRows) {
+      return;
+    }
+
+    const index = this.listScrollOffset + rowIndex;
+    if (index >= this.filteredThemes.length) {
+      return;
+    }
+
+    this.hoveredListIndex = index;
+    if (event.kind === "left-release") {
+      this.selectThemeByIndex(index);
+      return;
+    }
+
+    this.tui.requestRender();
   }
 
   private handleHelpInput(data: string): void {
@@ -222,10 +265,6 @@ class ThemeBrowser implements Component {
     process.exit(0);
   }
 
-  private forwardListInput(data: string): void {
-    this.list.handleInput(data);
-  }
-
   private renderPreview(width: number): string[] {
     if (!this.selectedTheme) {
       return [padVisible(centerText("No theme selected", width), width)];
@@ -240,7 +279,7 @@ class ThemeBrowser implements Component {
     const lines: string[] = [
       centerText(this.selectedTheme.name, width),
       centerText(relativeThemePath(this.selectedTheme.sourcePath), width),
-      centerText(`mode:${this.mode}  themes:${this.items.length}`, width),
+      centerText(`mode:${this.mode}  themes:${this.filteredThemes.length}`, width),
     ];
     const sectionBorder = new DynamicBorder();
 
@@ -258,47 +297,44 @@ class ThemeBrowser implements Component {
   }
 
   private renderThemeList(width: number, rows: number): string[] {
-    const lines = this.list.render(width).map((line) => truncateToWidth(line, width));
-    return padToRows(lines, rows, "");
+    const theme = this.getChromeTheme();
+    const visibleThemes = this.filteredThemes.slice(this.listScrollOffset, this.listScrollOffset + rows);
+    const lines = visibleThemes.map((entry, rowIndex) => {
+      const index = this.listScrollOffset + rowIndex;
+      const isSelected = index === this.selectedIndex;
+      const isHovered = index === this.hoveredListIndex;
+      return renderThemeListRow(entry.name, width, theme, isSelected, isHovered);
+    });
+
+    return padToRows(lines, rows, padVisible("", width));
   }
 
   private renderFooter(width: number): string {
-    const search = this.searchMode
-      ? `/ ${this.searchQuery}`
-      : this.searchQuery
-        ? `filter:${this.searchQuery}`
-        : `filter:${this.mode}`;
-    const help = this.helpMode
-      ? "esc/? close help"
-      : this.searchMode
-        ? "enter/esc close  ctrl+x clear"
-        : "j/k move  pgup/pgdn jump  / search  ? help  f filter  q quit";
+    const search = this.searchQuery ? `query:${this.searchQuery}` : `filter:${this.mode}`;
+    const help = this.searchMode
+      ? "type to filter  enter close  ctrl+x clear"
+      : this.helpMode
+        ? "esc close"
+        : "j/k move  pgup/pgdn jump  / search  f filter  ? help  q quit";
     return padVisible(truncateToWidth(`${search}  ${help}`, width), width);
   }
 
   private moveSelection(delta: number): void {
-    const currentIndex = Math.max(0, this.items.findIndex((item) => item.value === this.selectedTheme?.name));
-    const nextIndex = Math.max(0, Math.min(this.items.length - 1, currentIndex + delta));
-    this.selectListIndex(nextIndex);
+    this.hoveredListIndex = undefined;
+    this.selectThemeByIndex(clamp(this.selectedIndex + delta, 0, Math.max(0, this.filteredThemes.length - 1)));
   }
 
-  private selectListIndex(index: number): void {
-    this.list.setSelectedIndex(index);
-    this.activateSelectedItem(index);
-  }
-
-  private activateSelectedItem(index: number): void {
-    const item = this.items[index];
-    if (!item) {
+  private selectThemeByIndex(index: number): void {
+    if (this.filteredThemes.length === 0) {
       return;
     }
 
-    const theme = this.themeByName.get(item.value);
-    if (!theme) {
-      return;
+    this.selectedIndex = clamp(index, 0, this.filteredThemes.length - 1);
+    this.ensureSelectionVisible();
+    const theme = this.filteredThemes[this.selectedIndex];
+    if (theme) {
+      this.activateTheme(theme);
     }
-
-    this.activateTheme(theme);
   }
 
   private cycleMode(): void {
@@ -312,43 +348,42 @@ class ThemeBrowser implements Component {
     this.tui.requestRender();
   }
 
-  private createSelectList(items: SelectItem[], maxVisible: number): SelectList {
-    const list = new SelectList(items, maxVisible, getSelectListTheme());
-    list.onSelectionChange = (item) => {
-      const theme = this.themeByName.get(item.value);
-      if (theme) {
-        this.activateTheme(theme);
-      }
-    };
-    list.onSelect = list.onSelectionChange;
-    return list;
-  }
-
-  private ensureListVisibleRows(visibleRows: number): void {
-    if (visibleRows === this.listVisibleRows) {
+  private ensureSelectionVisible(): void {
+    if (this.filteredThemes.length === 0) {
+      this.listScrollOffset = 0;
       return;
     }
 
-    this.listVisibleRows = visibleRows;
-    const selectedIndex = Math.max(0, this.items.findIndex((item) => item.value === this.selectedTheme?.name));
-    this.list = this.createSelectList(this.items, this.listVisibleRows);
-    this.list.setSelectedIndex(selectedIndex);
+    const maxOffset = Math.max(0, this.filteredThemes.length - this.listVisibleRows);
+    if (this.selectedIndex < this.listScrollOffset) {
+      this.listScrollOffset = this.selectedIndex;
+    } else if (this.selectedIndex >= this.listScrollOffset + this.listVisibleRows) {
+      this.listScrollOffset = this.selectedIndex - this.listVisibleRows + 1;
+    }
+    this.listScrollOffset = clamp(this.listScrollOffset, 0, maxOffset);
   }
 
   private resetItems(): void {
     const currentName = this.selectedTheme?.name;
-    const filteredThemes = this.getThemesForMode();
-    this.items = filteredThemes.map((theme) => ({ value: theme.name, label: theme.name }));
-    this.list = this.createSelectList(this.items, this.listVisibleRows);
+    this.filteredThemes = this.getThemesForMode();
+    this.hoveredListIndex = undefined;
 
-    const nextTheme = (currentName ? filteredThemes.find((theme) => theme.name === currentName) : undefined) ?? filteredThemes[0];
-    if (!nextTheme) {
+    if (this.filteredThemes.length === 0) {
       this.selectedTheme = undefined;
+      this.selectedIndex = 0;
+      this.listScrollOffset = 0;
       return;
     }
 
-    this.list.setSelectedIndex(Math.max(0, filteredThemes.findIndex((theme) => theme.name === nextTheme.name)));
-    this.activateTheme(nextTheme);
+    const nextIndex = currentName
+      ? this.filteredThemes.findIndex((theme) => theme.name === currentName)
+      : 0;
+    this.selectedIndex = nextIndex >= 0 ? nextIndex : 0;
+    this.ensureSelectionVisible();
+    const nextTheme = this.filteredThemes[this.selectedIndex];
+    if (nextTheme) {
+      this.activateTheme(nextTheme);
+    }
   }
 
   private getThemesForMode(): ThemeRecord[] {
@@ -387,6 +422,10 @@ class ThemeBrowser implements Component {
     }
     this.invalidate();
     this.tui.requestRender();
+  }
+
+  private getChromeTheme(): Theme {
+    return this.selectedTheme?.previewTheme ?? this.filteredThemes[0]?.previewTheme ?? this.allThemes[0]!.previewTheme;
   }
 
   private getPreviewFiller(width: number): string {
@@ -561,32 +600,113 @@ function overlayLines(baseLines: string[], overlayLinesInput: string[]): string[
   return result;
 }
 
-function buildHelpOverlay(width: number, height: number): string[] {
-  const overlayWidth = Math.min(68, Math.max(44, width - 12));
-  const entries = [
-    "q, esc, ctrl+c  Quit",
-    "?, F1, ctrl+h   Toggle help",
-    "f, tab          Cycle dark/light/all",
-    "j/k, arrows     Move one theme",
-    "pgup/pgdn       Move twenty themes",
-    "home/end        Jump to start or end",
-    "/               Start search",
-    "ctrl+x, ctrl+/  Clear search",
-  ];
-  const content = [
-    centerText("pi theme preview help", overlayWidth),
-    "",
-    ...entries.map((entry) => padVisible(entry, overlayWidth)),
-  ];
-  const padTop = Math.max(0, Math.floor((height - content.length) / 2));
-  const leftPad = Math.max(0, Math.floor((width - overlayWidth) / 2));
-  const bg = "\x1b[48;2;0;0;0m";
-  const fg = "\x1b[38;2;255;255;255m";
-  const reset = "\x1b[0m";
-  return [
-    ...Array.from({ length: padTop }, () => ""),
-    ...content.map((line) => `${" ".repeat(leftPad)}${bg}${fg}${padVisible(line, overlayWidth)}${reset}`),
-  ];
+function renderThemeListRow(name: string, width: number, theme: Theme, isSelected: boolean, isHovered: boolean): string {
+  const innerWidth = Math.max(0, width - 4);
+  const label = truncateToWidth(name, innerWidth);
+  if (isSelected) {
+    const left = "❯ ";
+    const right = " ❮";
+    const padding = Math.max(0, width - visibleWidth(left) - visibleWidth(label) - visibleWidth(right));
+    return `${theme.getBgAnsi("selectedBg")}${theme.getFgAnsi("accent")}${left}${label}${" ".repeat(padding)}${right}\x1b[39m\x1b[49m`;
+  }
+
+  const prefix = isHovered ? theme.fg("accent", "• ") : "  ";
+  const content = `${prefix}${label}`;
+  const padded = padVisible(content, width);
+  return isHovered ? theme.fg("accent", padded) : theme.fg("muted", padded);
+}
+
+function buildBoxOverlay(title: string, body: string[], width: number, maxWidth: number, theme: Theme): string[] {
+  const overlayWidth = Math.min(maxWidth, Math.max(44, width - 12));
+  const innerWidth = overlayWidth - 4;
+  const borderColor = theme.getFgAnsi("borderMuted");
+  const titleColor = theme.getFgAnsi("accent");
+  const textColor = theme.getFgAnsi("text");
+  const bg = theme.getBgAnsi("userMessageBg");
+  const reset = "\x1b[39m\x1b[49m";
+  const horizontal = "─".repeat(Math.max(0, overlayWidth - 2));
+  const lines = [`${borderColor}┌${horizontal}┐${reset}`];
+  lines.push(`${borderColor}│${bg} ${titleColor}${padVisible(title, innerWidth)}${reset}${borderColor} │${reset}`);
+  lines.push(`${borderColor}├${horizontal}┤${reset}`);
+  for (const line of body) {
+    lines.push(`${borderColor}│${bg} ${textColor}${padVisible(line, innerWidth)}${reset}${borderColor} │${reset}`);
+  }
+  lines.push(`${borderColor}└${horizontal}┘${reset}`);
+  return lines;
+}
+
+function buildHelpOverlay(width: number, _height: number, theme: Theme): string[] {
+  return buildBoxOverlay(
+    "Preview help",
+    [
+      "j/k, arrows     move selection",
+      "pgup/pgdn       jump by twenty",
+      "home/end        jump to first or last",
+      "mouse wheel      scroll themes",
+      "left click       select theme",
+      "f, tab          cycle dark/light/all",
+      "/               open search",
+      "ctrl+x          clear search",
+      "q, esc          quit or close overlay",
+    ],
+    width,
+    72,
+    theme,
+  );
+}
+
+function buildSearchOverlay(width: number, _height: number, query: string, theme: Theme): string[] {
+  return buildBoxOverlay(
+    "Search themes",
+    [
+      query.length > 0 ? query : "Type to filter themes by name",
+      "Enter or Esc closes search",
+      "Ctrl+X clears the query",
+    ],
+    width,
+    64,
+    theme,
+  );
+}
+
+type MouseEvent = {
+  kind: "wheel-up" | "wheel-down" | "left-press" | "left-release";
+  col: number;
+  row: number;
+};
+
+function parseMouseEvent(data: string): MouseEvent | null {
+  const match = data.match(/^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/);
+  if (!match) {
+    return null;
+  }
+
+  const button = Number.parseInt(match[1], 10);
+  const col = Number.parseInt(match[2], 10);
+  const row = Number.parseInt(match[3], 10);
+  const suffix = match[4];
+
+  if ((button & 64) !== 0) {
+    return {
+      kind: (button & 1) === 0 ? "wheel-up" : "wheel-down",
+      col,
+      row,
+    };
+  }
+
+  if ((button & 3) === 0) {
+    return {
+      kind: suffix === "m" ? "left-release" : "left-press",
+      col,
+      row,
+    };
+  }
+
+  return null;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 function parseMode(value: string | undefined): ThemeMode {
@@ -613,11 +733,20 @@ function leaveAlternateScreen(): void {
   process.stdout.write("\x1b[?1049l");
 }
 
+function enableMouseMode(): void {
+  process.stdout.write("\x1b[?1000h\x1b[?1006h");
+}
+
+function disableMouseMode(): void {
+  process.stdout.write("\x1b[?1000l\x1b[?1006l");
+}
+
 function cleanupTerminal(): void {
   if (terminalCleanedUp) {
     return;
   }
   terminalCleanedUp = true;
+  disableMouseMode();
   leaveAlternateScreen();
 }
 
@@ -684,6 +813,32 @@ type ThemeJson = {
   export?: { pageBg?: string };
 };
 
+function resolvePreviewColorValue(
+  value: string,
+  varsMap: Record<string, string>,
+  inheritedFallback: string,
+  visited = new Set<string>(),
+): string {
+  if (value === "") {
+    return inheritedFallback;
+  }
+  if (value.startsWith("#")) {
+    return value;
+  }
+
+  const nextValue = varsMap[value];
+  if (!nextValue) {
+    return value;
+  }
+
+  if (visited.has(value)) {
+    throw new Error(`Circular theme variable reference detected: ${value}`);
+  }
+
+  visited.add(value);
+  return resolvePreviewColorValue(nextValue, varsMap, inheritedFallback, visited);
+}
+
 function createPreviewThemeFromJson(path: string, data: ThemeJson): Theme {
   const varsMap = data.vars ?? {};
   const colorsMap = data.colors ?? {};
@@ -699,10 +854,8 @@ function createPreviewThemeFromJson(path: string, data: ThemeJson): Theme {
   const bgColors: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(colorsMap)) {
-    const resolved = value === "" ? varsMap.fg : varsMap[value];
-    if (!resolved) {
-      continue;
-    }
+    const inheritedFallback = bgColorKeys.has(key) ? (varsMap.bg ?? "#000000") : (varsMap.fg ?? "#ffffff");
+    const resolved = resolvePreviewColorValue(value, varsMap, inheritedFallback);
     if (bgColorKeys.has(key)) {
       bgColors[key] = resolved;
       continue;
@@ -770,6 +923,7 @@ async function main(): Promise<void> {
   const browser = new ThemeBrowser(tui, themes, DEFAULT_MODE);
 
   enterAlternateScreen();
+  enableMouseMode();
   tui.addChild(browser);
   tui.setFocus(browser);
   tui.start();
