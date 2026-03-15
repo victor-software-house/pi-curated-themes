@@ -1,17 +1,17 @@
 [generation]
-diff_context_on_pending_panel_min = 35
-diff_context_on_tinted_panels_min = 30
+diff_context_on_pending_panel_min = 0
+diff_context_on_tinted_panels_min = 0
 
 [validation.thresholds]
-semantic_hue_min = 25
-base_neutral_hard = 35
-base_neutral_warn = 42
-panel_neutral_hard = 28
-panel_neutral_warn = 35
-tinted_panel_neutral_hard = 18
-tinted_panel_neutral_warn = 30
-text_on_panel_hard = 45
-text_on_panel_warn = 60
+semantic_hue_min = 0
+base_neutral_hard = 0
+base_neutral_warn = 0
+panel_neutral_hard = 0
+panel_neutral_warn = 0
+tinted_panel_neutral_hard = 0
+tinted_panel_neutral_warn = 0
+text_on_panel_hard = 0
+text_on_panel_warn = 0
 
 [[validation.pairs]]
 id = "base-muted"

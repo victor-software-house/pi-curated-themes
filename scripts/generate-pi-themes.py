@@ -357,8 +357,9 @@ def generate_theme(name: str, g: dict, policy: dict) -> dict:
     # ── Panels ──
     panel = lighten(bg, 5)
     panel_alt = lighten(bg, 8)
-    panel_success = tint_toward(lighten(bg, 6), success_color, 0.07)
-    panel_error = tint_toward(lighten(bg, 6), error_color, 0.10)
+    panel_base = lighten(bg, 6)
+    panel_success = mix(success_color, panel_base, 0.02)
+    panel_error = mix(error_color, panel_base, 0.05)
     panel_info = lighten(bg, 10)
 
     # ── Fix accent if identical to error ──

@@ -13,15 +13,15 @@
     "white": "#ddccbb",
     "panel": "#212121",
     "panelAlt": "#242424",
-    "panelSuccess": "#292e30",
-    "panelError": "#382f27",
+    "panelSuccess": "#242526",
+    "panelError": "#2d2824",
     "panelInfo": "#262626",
     "success": "#87ceeb",
     "error": "#ffa75d",
     "warning": "#88aa22",
     "diffAdded": "#a0d7e6",
     "diffRemoved": "#f4bc83",
-    "diffContext": "#5a4949"
+    "diffContext": "#554444"
   },
   "colors": {
     "accent": "accent",
