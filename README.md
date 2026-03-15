@@ -111,7 +111,7 @@ bash scripts/fetch-upstream.sh
 mise run themes:generate
 
 # 3. Generate a single theme
-mise run themes:generate -- --name "Catppuccin Mocha"
+mise run themes:generate --name "Catppuccin Mocha"
 
 # 4. Validate without regenerating
 mise run themes:validate
