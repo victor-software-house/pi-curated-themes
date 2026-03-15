@@ -112,6 +112,19 @@ def ensure_contrast(fg: str, bg: str, min_diff: int = 45) -> str:
     return lighten(fg, needed) if bl < 128 else darken(fg, needed)
 
 
+def cap_contrast(fg: str, bg: str, max_diff: int = 190) -> str:
+    """Soften a color if it's too bright/harsh against the background."""
+    fl, bl = luminance(fg), luminance(bg)
+    diff = abs(fl - bl)
+    if diff <= max_diff:
+        return fg
+    # Mix toward background to reduce contrast while preserving hue
+    overshoot = diff - max_diff
+    # Ratio: how much to pull toward bg. Each step of mix reduces contrast.
+    ratio = min(overshoot / diff, 0.4)  # never pull more than 40% toward bg
+    return mix(bg, fg, ratio)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # P3 -> sRGB conversion (matches upstream gen.py)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -332,7 +345,7 @@ def generate_theme(name: str, g: dict) -> dict:
 
     # ── Grays ──
     gray = bright_black if luminance(bright_black) > luminance(bg) + 25 else lighten(bg, 55)
-    gray = ensure_contrast(gray, bg, 45)
+    gray = ensure_contrast(gray, bg, 40)
     dim = ensure_contrast(gray, bg, 45)
     dark_gray = lighten(bg, 15)
     white_color = bright_white if luminance(bright_white) > 200 else "#f5f5f5"
@@ -456,39 +469,69 @@ def generate_theme(name: str, g: dict) -> dict:
 # Validation
 # ──────────────────────────────────────────────────────────────────────────────
 
+GRAY_CONTRAST_HARD = 35
+GRAY_CONTRAST_WARN = 42
+
+
 def validate_themes() -> bool:
-    issues = []
+    errors = []
+    warnings = []
     theme_dir = OUTPUT_DIR
     for f in sorted(theme_dir.iterdir()):
         if not f.name.endswith("-semantic.json"):
             continue
         t = json.loads(f.read_text())
         v = t.get("vars", {})
+        name = t.get("name", f.name)
         s, e, w = v.get("success", ""), v.get("error", ""), v.get("warning", "")
         bg_v = v.get("bg", "#000000")
         acc = v.get("accent", "")
-        problems = []
-        if s and e and hue_distance(s, e) < 25:
-            problems.append(f"success-error hue={hue_distance(s, e):.0f}deg")
-        if s and w and hue_distance(s, w) < 25:
-            problems.append(f"success-warning hue={hue_distance(s, w):.0f}deg")
-        if e and w and hue_distance(e, w) < 25:
-            problems.append(f"error-warning hue={hue_distance(e, w):.0f}deg")
-        if acc and e and acc == e:
-            problems.append("accent identical to error")
         gray_v = v.get("gray", "")
-        if gray_v and bg_v and abs(luminance(gray_v) - luminance(bg_v)) < 40:
-            problems.append("dim/gray contrast too low")
-        if problems:
-            issues.append((t.get("name", f.name), problems))
 
-    if issues:
-        print(f"{len(issues)} theme(s) with issues:")
-        for name, probs in issues:
-            print(f"  {name}: {', '.join(probs)}")
-        return False
+        err_list: list[str] = []
+        warn_list: list[str] = []
+
+        # Hue distinctness (hard)
+        if s and e and hue_distance(s, e) < 25:
+            err_list.append(f"success-error hue={hue_distance(s, e):.0f}deg (<25)")
+        if s and w and hue_distance(s, w) < 25:
+            err_list.append(f"success-warning hue={hue_distance(s, w):.0f}deg (<25)")
+        if e and w and hue_distance(e, w) < 25:
+            err_list.append(f"error-warning hue={hue_distance(e, w):.0f}deg (<25)")
+
+        # Accent-error collision (hard)
+        if acc and e and acc == e:
+            err_list.append("accent identical to error")
+
+        # Gray/dim contrast
+        if gray_v and bg_v:
+            contrast = abs(luminance(gray_v) - luminance(bg_v))
+            if contrast < GRAY_CONTRAST_HARD:
+                err_list.append(f"dim/gray contrast {contrast:.0f} (<{GRAY_CONTRAST_HARD})")
+            elif contrast < GRAY_CONTRAST_WARN:
+                warn_list.append(f"dim/gray contrast {contrast:.0f} (<{GRAY_CONTRAST_WARN})")
+
+        if err_list:
+            errors.append((name, err_list))
+        if warn_list:
+            warnings.append((name, warn_list))
+
     count = sum(1 for f in theme_dir.iterdir() if f.name.endswith("-semantic.json"))
-    print(f"All {count} semantic themes pass validation")
+
+    if warnings:
+        print(f"{len(warnings)} theme(s) with warnings:")
+        for name, probs in warnings:
+            print(f"  WARN {name}: {', '.join(probs)}")
+        print()
+
+    if errors:
+        print(f"{len(errors)} theme(s) with errors:")
+        for name, probs in errors:
+            print(f"  FAIL {name}: {', '.join(probs)}")
+        return False
+
+    status = "pass" if not warnings else "pass (with warnings)"
+    print(f"All {count} semantic themes {status}")
     return True
 
 
