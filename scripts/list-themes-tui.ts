@@ -15,8 +15,11 @@ import {
   AssistantMessageComponent,
   BashExecutionComponent,
   CustomMessageComponent,
+  DefaultPackageManager,
   DynamicBorder,
+  getAgentDir,
   getMarkdownTheme,
+  SettingsManager,
   Theme,
   ToolExecutionComponent,
   UserMessageComponent,
@@ -35,11 +38,27 @@ type ThemeRecord = {
   previewTheme: Theme;
 };
 
+type PersistStatus = {
+  kind: "success" | "error";
+  message: string;
+};
+
+type PackageInstallState = {
+  installed: boolean;
+  currentTheme?: string;
+};
+
+type PackageManifest = {
+  name?: string;
+  version?: string;
+};
+
 const SCRIPT_DIR = import.meta.dir;
 const REPO_ROOT = `${SCRIPT_DIR}/..`;
 const THEMES_DIR = `${REPO_ROOT}/themes`;
 const UPSTREAM_SCHEMES_DIR = `${REPO_ROOT}/.upstream/iTerm2-Color-Schemes/schemes`;
 const CURATED_TOML_PATH = `${REPO_ROOT}/curated.toml`;
+const PACKAGE_JSON_PATH = `${REPO_ROOT}/package.json`;
 const AGENT_DIR_ENV = "PI_CODING_AGENT_DIR";
 const DEFAULT_MODE: ThemeMode = parseMode(Bun.argv[2]);
 const THEME_LIST_JUMP_SIZE = 20;
@@ -48,6 +67,7 @@ let terminalCleanedUp = false;
 class ThemeBrowser implements Component {
   private readonly tui: TUI;
   private readonly allThemes: ThemeRecord[];
+  private readonly packageInstallState: PackageInstallState;
   private previewComponents: Component[] = [];
   private readonly previewLinesCache = new Map<string, string[]>();
   private filteredThemes: ThemeRecord[] = [];
@@ -62,11 +82,13 @@ class ThemeBrowser implements Component {
   private selectedTheme?: ThemeRecord;
   private previewWidth = 72;
   private lastLeftPaneWidth = 24;
+  private persistStatus?: PersistStatus;
 
-  constructor(tui: TUI, themes: ThemeRecord[], mode: ThemeMode) {
+  constructor(tui: TUI, themes: ThemeRecord[], mode: ThemeMode, packageInstallState: PackageInstallState) {
     this.tui = tui;
     this.allThemes = themes;
     this.mode = mode;
+    this.packageInstallState = packageInstallState;
     this.resetItems();
   }
 
@@ -142,6 +164,13 @@ class ThemeBrowser implements Component {
       return;
     }
 
+    if (matchesKey(data, Key.enter)) {
+      if (this.packageInstallState.installed) {
+        void this.persistSelectedThemeGlobally();
+      }
+      return;
+    }
+
     if (matchesKey(data, Key.down) || data === "j" || data === "+") {
       this.moveSelection(1);
       return;
@@ -169,7 +198,7 @@ class ThemeBrowser implements Component {
     const separatorBg = this.selectedTheme?.pageBg ?? this.filteredThemes[0]?.pageBg ?? "#000000";
     let body = joinColumns(leftLines, rightLines, leftWidth, separator, rightWidth, separatorBg);
     if (this.helpMode) {
-      body = overlayLines(body, buildHelpOverlay(width, bodyRows, this.getChromeTheme()));
+      body = overlayLines(body, buildHelpOverlay(width, bodyRows, this.getChromeTheme(), this.packageInstallState.installed));
     }
     if (this.searchMode) {
       body = overlayLines(body, buildSearchOverlay(width, bodyRows, this.searchQuery, this.getChromeTheme()));
@@ -305,7 +334,8 @@ class ThemeBrowser implements Component {
       const index = this.listScrollOffset + rowIndex;
       const isSelected = index === this.selectedIndex;
       const isHovered = index === this.hoveredListIndex;
-      return renderThemeListRow(entry.name, width, theme, pageBg, isSelected, isHovered);
+      const isCurrent = this.packageInstallState.installed && this.packageInstallState.currentTheme === entry.name;
+      return renderThemeListRow(entry.name, width, theme, pageBg, isSelected, isHovered, isCurrent);
     });
 
     return padToRows(lines, rows, padLineBackground("", width, pageBg));
@@ -317,11 +347,24 @@ class ThemeBrowser implements Component {
       ? "type to filter  enter close  ctrl+x clear"
       : this.helpMode
         ? "esc close"
-        : "j/k move  pgup/pgdn jump  / search  f filter  ? help  q quit";
+        : this.packageInstallState.installed
+          ? "j/k move  enter select  pgup/pgdn jump  / search  f filter  ? help  q quit"
+          : "j/k move  pgup/pgdn jump  / search  f filter  ? help  q quit";
     const pageBg = this.selectedTheme?.pageBg ?? this.filteredThemes[0]?.pageBg ?? "#000000";
     const chromeTheme = this.getChromeTheme();
-    const footerText = chromeTheme.fg("muted", truncateToWidth(`${search}  ${help}`, width));
-    return padLineBackground(footerText, width, pageBg);
+    const statusText = this.persistStatus
+      ? this.persistStatus.kind === "success"
+        ? chromeTheme.fg("success", this.persistStatus.message)
+        : chromeTheme.fg("error", this.persistStatus.message)
+      : "";
+    const baseText = chromeTheme.fg("muted", truncateToWidth(`${search}  ${help}`, width));
+    if (!statusText) {
+      return padLineBackground(baseText, width, pageBg);
+    }
+
+    const availableWidth = Math.max(0, width - visibleWidth(statusText) - 2);
+    const leftText = chromeTheme.fg("muted", truncateToWidth(`${search}  ${help}`, availableWidth));
+    return padLineBackground(`${leftText}  ${statusText}`, width, pageBg);
   }
 
   private moveSelection(delta: number): void {
@@ -422,6 +465,7 @@ class ThemeBrowser implements Component {
     setPreviewThemeInstance(theme.previewTheme);
 
     this.selectedTheme = theme;
+    this.persistStatus = undefined;
     if (this.previewComponents.length === 0) {
       this.previewComponents = buildPreviewComponents(this.tui, this.previewWidth);
     }
@@ -431,6 +475,41 @@ class ThemeBrowser implements Component {
 
   private getChromeTheme(): Theme {
     return this.selectedTheme?.previewTheme ?? this.filteredThemes[0]?.previewTheme ?? this.allThemes[0]!.previewTheme;
+  }
+
+  private async persistSelectedThemeGlobally(): Promise<void> {
+    const theme = this.selectedTheme;
+    if (!theme) {
+      return;
+    }
+
+    try {
+      const settingsManager = SettingsManager.create(REPO_ROOT);
+      settingsManager.setTheme(theme.name);
+      await settingsManager.flush();
+
+      const errors = settingsManager.drainErrors();
+      if (errors.length > 0) {
+        const [firstError] = errors;
+        this.persistStatus = {
+          kind: "error",
+          message: `global apply failed: ${firstError?.error.message ?? "unknown error"}`,
+        };
+      } else {
+        this.persistStatus = {
+          kind: "success",
+          message: `selected theme: ${theme.name}`,
+        };
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      this.persistStatus = {
+        kind: "error",
+        message: `global apply failed: ${message}`,
+      };
+    }
+
+    this.tui.requestRender();
   }
 
   private getPreviewFiller(width: number): string {
@@ -607,19 +686,29 @@ function overlayLines(baseLines: string[], overlayLinesInput: string[]): string[
   return result;
 }
 
-function renderThemeListRow(name: string, width: number, theme: Theme, pageBg: string, isSelected: boolean, isHovered: boolean): string {
-  const innerWidth = Math.max(0, width - 4);
+function renderThemeListRow(
+  name: string,
+  width: number,
+  theme: Theme,
+  pageBg: string,
+  isSelected: boolean,
+  isHovered: boolean,
+  isCurrent: boolean,
+): string {
+  const marker = isCurrent ? " *" : "";
+  const left = isSelected ? "❯ " : isHovered ? "• " : "  ";
+  const right = isSelected ? ` ❮${marker}` : marker;
+  const innerWidth = Math.max(0, width - visibleWidth(left) - visibleWidth(right));
   const label = truncateToWidth(name, innerWidth);
+  const padding = Math.max(0, width - visibleWidth(left) - visibleWidth(label) - visibleWidth(right));
+
   if (isSelected) {
-    const left = "❯ ";
-    const right = " ❮";
-    const padding = Math.max(0, width - visibleWidth(left) - visibleWidth(label) - visibleWidth(right));
     return `${theme.getBgAnsi("selectedBg")}${theme.getFgAnsi("accent")}${left}${label}${" ".repeat(padding)}${right}\x1b[39m\x1b[49m`;
   }
 
-  const prefix = isHovered ? "• " : "  ";
-  const text = isHovered ? theme.fg("accent", `${prefix}${label}`) : theme.fg("muted", `${prefix}${label}`);
-  return padLineBackground(text, width, pageBg);
+  const text = isHovered ? theme.fg("accent", `${left}${label}`) : theme.fg("muted", `${left}${label}`);
+  const suffix = isCurrent ? theme.fg("success", marker) : "";
+  return padLineBackground(`${text}${" ".repeat(padding)}${suffix}`, width, pageBg);
 }
 
 function buildBoxOverlay(title: string, body: string[], width: number, maxWidth: number, theme: Theme): string[] {
@@ -641,24 +730,24 @@ function buildBoxOverlay(title: string, body: string[], width: number, maxWidth:
   return lines;
 }
 
-function buildHelpOverlay(width: number, _height: number, theme: Theme): string[] {
-  return buildBoxOverlay(
-    "Preview help",
-    [
-      "j/k, arrows     move selection",
-      "pgup/pgdn       jump by twenty",
-      "home/end        jump to first or last",
-      "mouse wheel      scroll themes",
-      "left click       select theme",
-      "f, tab          cycle dark/light/all",
-      "/               open search",
-      "ctrl+x          clear search",
-      "q, esc          quit or close overlay",
-    ],
-    width,
-    72,
-    theme,
-  );
+function buildHelpOverlay(width: number, _height: number, theme: Theme, canSelectInPi: boolean): string[] {
+  const body = [
+    "j/k, arrows     move selection",
+    "pgup/pgdn       jump by twenty",
+    "home/end        jump to first or last",
+    "mouse wheel      scroll themes",
+    "left click       preview theme",
+    "f, tab          cycle dark/light/all",
+    "/               open search",
+    "ctrl+x          clear search",
+    "q, esc          quit or close overlay",
+  ];
+
+  if (canSelectInPi) {
+    body.splice(5, 0, "enter            select theme in pi", "*                current pi theme");
+  }
+
+  return buildBoxOverlay("Preview help", body, width, 72, theme);
 }
 
 function buildSearchOverlay(width: number, _height: number, query: string, theme: Theme): string[] {
@@ -919,6 +1008,55 @@ async function loadThemes(): Promise<ThemeRecord[]> {
   return themes.sort((first, second) => first.name.localeCompare(second.name));
 }
 
+async function detectPackageInstallState(): Promise<PackageInstallState> {
+  const manifest = (await Bun.file(PACKAGE_JSON_PATH).json()) as PackageManifest;
+  const packageName = manifest.name;
+  const packageVersion = manifest.version;
+  const settingsManager = SettingsManager.create(REPO_ROOT);
+  const currentTheme = settingsManager.getTheme();
+
+  if (!packageName || !packageVersion) {
+    return { installed: false, currentTheme };
+  }
+
+  const packageManager = new DefaultPackageManager({
+    cwd: REPO_ROOT,
+    agentDir: getAgentDir(),
+    settingsManager,
+  });
+
+  const packageSources = [
+    ...(settingsManager.getProjectSettings().packages ?? []).map((pkg) => ({ pkg, scope: "project" as const })),
+    ...(settingsManager.getGlobalSettings().packages ?? []).map((pkg) => ({ pkg, scope: "user" as const })),
+  ];
+
+  for (const { pkg, scope } of packageSources) {
+    const source = typeof pkg === "string" ? pkg : pkg.source;
+    const installedPath = packageManager.getInstalledPath(source, scope);
+    if (!installedPath) {
+      continue;
+    }
+
+    const installedPackageJsonPath = `${installedPath}/package.json`;
+    if (!(await Bun.file(installedPackageJsonPath).exists())) {
+      continue;
+    }
+
+    const installedManifest = (await Bun.file(installedPackageJsonPath).json()) as PackageManifest;
+    if (installedManifest.name === packageName && installedManifest.version === packageVersion) {
+      return {
+        installed: true,
+        currentTheme,
+      };
+    }
+  }
+
+  return {
+    installed: false,
+    currentTheme,
+  };
+}
+
 async function main(): Promise<void> {
   process.env[AGENT_DIR_ENV] = REPO_ROOT;
   process.env.COLORTERM = process.env.COLORTERM || "truecolor";
@@ -933,14 +1071,14 @@ async function main(): Promise<void> {
     process.exit(143);
   });
 
-  const themes = await loadThemes();
+  const [themes, packageInstallState] = await Promise.all([loadThemes(), detectPackageInstallState()]);
   if (themes.length === 0) {
     throw new Error(`No themes found in ${THEMES_DIR}`);
   }
 
   const terminal = new ProcessTerminal();
   const tui = new TUI(terminal);
-  const browser = new ThemeBrowser(tui, themes, DEFAULT_MODE);
+  const browser = new ThemeBrowser(tui, themes, DEFAULT_MODE, packageInstallState);
 
   enterAlternateScreen();
   enableMouseMode();

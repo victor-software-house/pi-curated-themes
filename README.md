@@ -58,7 +58,7 @@ When a palette lacks a needed hue, the missing color is derived by mixing a cano
 pi install git:github.com/victor-software-house/pi-curated-themes
 
 # From npm (after publishing)
-pi install npm:@victor/pi-curated-themes
+pi install npm:@victor-software-house/pi-curated-themes
 ```
 
 ## Use
@@ -98,6 +98,8 @@ mise run preview -- all
 ```
 
 The task runs `scripts/list-themes-tui.ts`, which uses Bun to resolve its npm dependencies on demand.
+
+If the matching `@victor-software-house/pi-curated-themes` package version is already installed in pi, the preview shows an Enter keybinding that sets the selected theme in `~/.pi/agent/settings.json`. The current pi theme is also marked in the list when it belongs to this package.
 
 The preview currently uses a TypeScript example snippet so syntax highlighting matches supported pi preview behavior.
 

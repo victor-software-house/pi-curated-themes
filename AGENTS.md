@@ -9,7 +9,7 @@ These instructions apply to the entire repository.
 This repository publishes curated dark terminal themes for pi, adapted from iTerm2-Color-Schemes.
 
 Current package:
-- `@victor/pi-curated-themes`
+- `@victor-software-house/pi-curated-themes`
 
 ## Upstream source
 
