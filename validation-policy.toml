@@ -1,0 +1,86 @@
+[generation]
+diff_context_on_pending_panel_min = 35
+diff_context_on_tinted_panels_min = 30
+
+[validation.thresholds]
+semantic_hue_min = 25
+base_neutral_hard = 35
+base_neutral_warn = 42
+panel_neutral_hard = 28
+panel_neutral_warn = 35
+tinted_panel_neutral_hard = 18
+tinted_panel_neutral_warn = 30
+text_on_panel_hard = 45
+text_on_panel_warn = 60
+
+[[validation.pairs]]
+id = "base-muted"
+fg = "muted"
+bg = "bg"
+policy = "base_neutral"
+
+[[validation.pairs]]
+id = "thinking-text"
+fg = "thinkingText"
+bg = "bg"
+policy = "base_neutral"
+
+[[validation.pairs]]
+id = "md-link-url-on-base"
+fg = "mdLinkUrl"
+bg = "bg"
+policy = "base_neutral"
+
+[[validation.pairs]]
+id = "md-quote-on-base"
+fg = "mdQuote"
+bg = "bg"
+policy = "base_neutral"
+
+[[validation.pairs]]
+id = "user-message-text"
+fg = "userMessageText"
+bg = "userMessageBg"
+policy = "text_on_panel"
+
+[[validation.pairs]]
+id = "custom-message-text"
+fg = "customMessageText"
+bg = "customMessageBg"
+policy = "text_on_panel"
+
+[[validation.pairs]]
+id = "tool-output-pending"
+fg = "toolOutput"
+bg = "toolPendingBg"
+policy = "text_on_panel"
+
+[[validation.pairs]]
+id = "tool-output-success"
+fg = "toolOutput"
+bg = "toolSuccessBg"
+policy = "text_on_panel"
+
+[[validation.pairs]]
+id = "tool-output-error"
+fg = "toolOutput"
+bg = "toolErrorBg"
+policy = "text_on_panel"
+
+[[validation.pairs]]
+id = "tool-diff-context-pending"
+fg = "toolDiffContext"
+bg = "toolPendingBg"
+policy = "panel_neutral"
+
+[[validation.pairs]]
+id = "tool-diff-context-success"
+fg = "toolDiffContext"
+bg = "toolSuccessBg"
+policy = "tinted_panel_neutral"
+
+[[validation.pairs]]
+id = "tool-diff-context-error"
+fg = "toolDiffContext"
+bg = "toolErrorBg"
+policy = "tinted_panel_neutral"

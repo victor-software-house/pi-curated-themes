@@ -34,6 +34,8 @@ Twilight, Vague, Vesper, Xcode Dark hc
 
 The curation list is in `curated.toml`.
 
+Validation and generation thresholds live in `validation-policy.toml`.
+
 ## What "semantic" means
 
 Source palettes define 16 ANSI colors plus background/foreground/cursor. pi requires 51 tokens for tool panels, diff colors, markdown, syntax highlighting, thinking borders, and footer readability.
