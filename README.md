@@ -4,6 +4,8 @@
 
 Curated dark terminal themes for [pi](https://github.com/badlogic/pi-mono), adapted from [iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes) to pi's 51-token theme model.
 
+![Theme previewer showing the interactive TUI with a list of 65 curated dark themes](https://raw.githubusercontent.com/victor-software-house/pi-curated-themes/main/assets/package-preview.png)
+
 ## Variant naming
 
 This package ships the semantic variant as the default theme name.
@@ -94,6 +96,7 @@ Pinned tools:
 ## Theme preview
 
 Run the interactive preview TUI with mise:
+
 
 ```bash
 mise run preview
