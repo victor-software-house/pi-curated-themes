@@ -62,7 +62,7 @@ jobs:
           node-version: lts/*
 
       - name: Setup mise
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v4
 
       - name: Install dependencies
         run: npm clean-install
