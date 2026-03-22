@@ -1,3 +1,10 @@
+## [0.2.1](https://github.com/victor-software-house/pi-curated-themes/compare/v0.2.0...v0.2.1) (2026-03-22)
+
+
+### Bug Fixes
+
+* force publish to update package README on npm ([30fff8f](https://github.com/victor-software-house/pi-curated-themes/commit/30fff8f3ee2e8b42cf4b621db34b7d6505fdbeea))
+
 # [0.2.0](https://github.com/victor-software-house/pi-curated-themes/compare/v0.1.0...v0.2.0) (2026-03-15)
 
 
