@@ -560,8 +560,9 @@ function buildPreviewComponents(tui: TUI, width: number): Component[] {
 
   const codeTool = new ToolExecutionComponent(
     "read",
+    "call-read-1",
     { path: "src/theme-preview.ts", offset: 1, limit: 18 },
-    {},
+    undefined,
     undefined,
     tui,
     REPO_ROOT,
@@ -595,12 +596,13 @@ function buildPreviewComponents(tui: TUI, width: number): Component[] {
 
   const editTool = new ToolExecutionComponent(
     "edit",
+    "call-edit-1",
     {
       file_path: "src/theme-preview.ts",
       old_string: '    .slice(0, 3);',
       new_string: '    .slice(0, 5);',
     },
-    {},
+    undefined,
     undefined,
     tui,
     REPO_ROOT,
